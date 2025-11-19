@@ -1,6 +1,6 @@
 from ._typing import arraytype
 import numpy as np
-from .base import add, mul
+from .functions import add, mul
 
 def as_ndarray(x):
     if isinstance(x, np.ndarray|int|float|bool|list):
@@ -27,6 +27,8 @@ class NDarray(arraytype):
     
     def __array__(self):
         return self.np
+
+    __array_priority__ = 200
 
     def __add__(self, other):
         return add(self, other)

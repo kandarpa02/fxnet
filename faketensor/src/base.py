@@ -5,8 +5,9 @@ from dataclasses import dataclass
 import numpy as np
 from .utils import broadcast_backward
 
-from ._typing import arraytype as _ar
-arraytype = Union[_ar, np.ndarray]
+from ._typing import arraytype 
+
+_RECORDING = True
 
 TAPE_STACK = []
 
@@ -19,42 +20,75 @@ def tape():
     try:
         yield
     finally:
-        pass     
+        pass   
+
+@contextmanager
+def no_record():
+    global _RECORDING
+    prev = _RECORDING
+    _RECORDING = False
+    try:
+        yield
+    finally:
+        _RECORDING = prev
 
 @dataclass
 class Node:
     out: np.ndarray
-    parents: tuple[np.ndarray]
+    parents: tuple
     grad_fn: Callable
 
-def function_register(fun):
-    def inner(*args):
-        out, parents, grad_fn = fun(*args)
+
+class function:
+    def __init__(self, fun):
+        self.fun = fun
+
+    def __call__(self, *args):
+        global _RECORDING
+
+        prev = _RECORDING
+        _RECORDING = False
+        try:
+            output = self.fun(*args)
+
+            if not isinstance(output, tuple):
+                raise TypeError(
+                    f"Function '{self.fun.__name__}' must return a tuple, "
+                    f"got {type(output).__name__}"
+                )
+
+            n = len(output)
+
+            if n == 3:
+                out, parents, grad_fn = output
+
+                # validate parents
+                if not isinstance(parents, (tuple, list)):
+                    raise TypeError(
+                        f"Expected parents to be tuple/list, got {type(parents).__name__}"
+                    )
+
+            elif n == 2:
+                out, grad_fn = output
+                parents = args
+
+            else:
+                raise ValueError(
+                    f"Function '{self.fun.__name__}' must return either "
+                    f"(out, grad_fn) or (out, parents, grad_fn); got {n} values"
+                )
+
+            if not callable(grad_fn):
+                raise TypeError(
+                    f"grad_fn must be callable, got {type(grad_fn).__name__}"
+                )
+
+        finally:
+            # Always restore recording state
+            _RECORDING = prev
+
         t = active_tape()
-        if t is not None:
+        if t is not None and _RECORDING:
             t.append(Node(out, parents, grad_fn))
+
         return out
-    return inner
-
-def add(x:arraytype, y:arraytype):
-    @function_register
-    def _fun(x, y):
-        def grad_fn(g):
-            g1 = broadcast_backward(g, x.shape)
-            g2 = broadcast_backward(g, x.shape)
-            return g1, g2
-        return np.add(x, y), (x, y), grad_fn
-    
-    return _fun(x, y)
-
-def mul(x:arraytype, y:arraytype):
-    @function_register
-    def _fun(x, y):
-        def grad_fn(g):
-            g1 = broadcast_backward(mul(g, y), x.shape)
-            g2 = broadcast_backward(mul(g, x), x.shape)
-            return g1, g2
-        return np.multiply(x, y), (x, y), grad_fn
-    
-    return _fun(x, y)
-    
