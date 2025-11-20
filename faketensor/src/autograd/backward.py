@@ -61,9 +61,9 @@ def _backward(fun: Callable, args, argnums: Union[int, tuple, None]):
             pg = _extract_np(parent_grad)
 
             if pid in grads:
-                grads[pid] = grads[pid] + pg
+                grads[pid] = NDarray(grads[pid] + pg)
             else:
-                grads[pid] = pg
+                grads[pid] = NDarray(pg)
 
     return output, grads
 

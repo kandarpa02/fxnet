@@ -1,10 +1,10 @@
 from __future__ import annotations
 from typing import Protocol, TypeVar, runtime_checkable, Any, Callable, Union
 from numpy import ndarray
-T = TypeVar("T", bound="arraytype")
+T = TypeVar("T", bound="Array")
 
 @runtime_checkable
-class arraytype(Protocol):
+class Array(Protocol):
     """A protocol representing any array-like object that supports basic arithmetic operations.
     """
 

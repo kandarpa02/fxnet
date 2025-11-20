@@ -1,1 +1,1 @@
-from .math import add, multiply, subtract, negative, divide
+from .primitives import *

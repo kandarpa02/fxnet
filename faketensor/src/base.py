@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 from .utils import broadcast_backward
 
-from ._typing import arraytype 
+from ._typing import Array 
 
 _RECORDING = True
 
@@ -34,7 +34,7 @@ def no_record():
 
 @dataclass
 class Node:
-    out: arraytype
+    out: Array
     parents: tuple
     grad_fn: Callable
 

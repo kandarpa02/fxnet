@@ -1,4 +1,4 @@
-from ._typing import arraytype
+from ._typing import Array
 import numpy as np
 from .functions import (
     add,
@@ -6,6 +6,7 @@ from .functions import (
     subtract,
     negative,
     divide,
+    power
 )
 
 def as_ndarray(x):
@@ -19,7 +20,7 @@ def as_ndarray(x):
 def as_nd(x):
     return NDarray(x)
 
-class NDarray(arraytype):
+class NDarray(Array):
     def __init__(self, data, dtype=None) -> None:
         super().__init__()
         self.np = as_ndarray(data).astype(dtype) if dtype else as_ndarray(data)
@@ -57,6 +58,12 @@ class NDarray(arraytype):
 
     __array_priority__ = 200  # ensure our ops dominate numpy’s
 
+    def __float__(self):
+        return float(self.np)
+    
+    def __int__(self):
+        return float(self.np)
+
     # -------------------------
     # Unary ops
     # -------------------------
@@ -81,6 +88,10 @@ class NDarray(arraytype):
     def __truediv__(self, other):
         other = as_nd(other)
         return divide(self, other)
+    
+    def __pow__(self, other):
+        other = as_nd(other)
+        return power(self, other)
 
     # -------------------------
     # Binary ops (reverse)
@@ -100,3 +111,7 @@ class NDarray(arraytype):
     def __rtruediv__(self, other):
         other = as_nd(other)
         return divide(other, self)
+    
+    def __rpow__(self, other):
+        other = as_nd(other)
+        return power(self, other)
