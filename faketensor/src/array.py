@@ -10,7 +10,7 @@ from .functions import (
 )
 
 def as_ndarray(x):
-    if isinstance(x, (np.ndarray, int, float, bool, list)):
+    if isinstance(x, (np.ndarray, np.integer, np.floating, int, float, bool, list)):
         return np.asarray(x)
     elif isinstance(x, NDarray):
         return x.np

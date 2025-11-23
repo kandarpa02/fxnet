@@ -69,7 +69,7 @@ def divide(x:Array, y:Array):
 
         def grad_fn(g):
             g1 = broadcast_backward(divide(as_nd(1.), y), x.shape)  # raw numpy
-            g2 = broadcast_backward(negative(multiply(x, y**-2)), y.shape)
+            g2 = broadcast_backward(negative(multiply(x, y**as_nd(-2))), y.shape)
             return g1, g2
 
         return out, (as_nd(x), as_nd(y)), grad_fn
@@ -96,7 +96,7 @@ def power(x:Array, y:Array):
         out = as_nd(np.power(float(x), y))
 
         def grad_fn(g):
-            g1 = broadcast_backward(multiply(y, power(x, y-1)), x.shape)
+            g1 = broadcast_backward(y*x**(y-1), x.shape)
             g2 = broadcast_backward(multiply(out, np.log(x)), y.shape)
 
             return g1, g2
