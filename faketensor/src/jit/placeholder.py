@@ -46,6 +46,9 @@ class FT_Tracer:
         self.func = func
         self.parents = parents
 
+    def is_leaf(self):
+        return len(self.parents) == 0
+
     def __repr__(self):
         return f"FT_Tracer(shape={self.shape}, dtype='{self.dtype}', name='{self.name}')"
     
