@@ -3,7 +3,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import numpy as np
 from .utils import broadcast_backward
-
+from .jit.placeholder import FT_Tracer
+from .jit.utils import next_name, name
 from ._typing import Array 
 
 _RECORDING = True
@@ -41,8 +42,13 @@ class Node:
 class function:
     def __init__(self, fun):
         self.fun = fun
+        self.graph = None
 
     def __call__(self, *args):
+        next_name()
+        static_args = [FT_Tracer(arg.shape, arg.dtype.__str__() , name) for arg in args]
+        
+
         global _RECORDING
         prev = _RECORDING
         _RECORDING = False
