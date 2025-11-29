@@ -32,7 +32,7 @@ def sum(x: Array, axis=None, keepdims=False):
 
     def _fun(x):
         from ..array import as_nd
-        x_nd = as_nd(x)
+        x_nd = x
         out = as_nd(lib.sum(x_nd, axis=axis, keepdims=keepdims))
 
         def grad_fn(g):

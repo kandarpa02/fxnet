@@ -1,5 +1,3 @@
-# faketensor/array.py
-
 from ._typing import Array
 from ..backend.backend import xp    # unified backend (numpy OR cupy)
 from .functions import *
@@ -59,6 +57,9 @@ class NDarray(Array):
         arr = as_ndarray(data)
         self.np = arr.astype(dtype) if dtype else arr
         self.train = False
+    __is_leaf__ = True
+    __module__ = "faketensor"
+    __qualname__ = "NDarray"
     # -------------------------
     # Basic attributes
     # -------------------------
@@ -150,10 +151,6 @@ class NDarray(Array):
     @property
     def T(self):
         return transpose(self)
-    
-    def sum(self, axis:Optional[tuple[int]]=None, keepdims=False):
-        return sum(self, axis, keepdims)
-
     # -------------------------
     # Binary ops (reverse)
     # -------------------------

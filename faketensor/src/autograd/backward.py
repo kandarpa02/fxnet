@@ -2,20 +2,38 @@ from typing import Callable, Any, Tuple, Union
 from ...backend import backend as b
 from ..base import TAPE_STACK, tape
 from ..array import NDarray
+from ...neural_nets.parameters import Variable
+from ...neural_nets.base import Cell
+from typing import Dict, Any
+from ..tree_util import flatten_pytree, register_tree_node, unflatten_pytree
+
+
+# ================================================================
+# Helper functions
+# ================================================================
+
+def is_leaf(x):
+    """Only NDarray/Variable are differentiable leaves. Cell is NOT."""
+    return getattr(x, "__is_leaf__", False)
+
+
+def expand_cell(x):
+    """
+    Expand Cell into its parameters.
+    If x is Cell -> replace it in pytree with x.parameters()
+    Otherwise return None.
+    """
+    if isinstance(x, Cell):
+        return list(x.parameters())
+    return None
 
 
 def _extract_np(x):
-    """Return underlying numpy array for NDarray or raw numpy."""
-    if isinstance(x, NDarray):
-        return x.np
-    return x
+    return x.np if is_leaf(x) else x
 
 
 def _id(x):
-    """ID based on numpy buffer for NDarray."""
-    if isinstance(x, NDarray):
-        return id(x.np)
-    return id(x)
+    return id(x.np) if is_leaf(x) else id(x)
 
 
 def _zero_like(x):
@@ -25,133 +43,94 @@ def _zero_like(x):
 # ================================================================
 # BACKWARD CORE (internal)
 # ================================================================
-def _backward(fun: Callable, args, argnums: Union[int, tuple, None]):
-    """
-    Perform forward + backward and return (value, grad_dict).
-    grad_dict maps id(x) → numpy gradient.
-    """
+def _backward(fun, original_args, diff_leaves):
 
-    if any(not isinstance(a, NDarray) for a in args):
-        raise TypeError("Only NDarray arguments supported")
-    
-    # -----------------------------
-    # 1) Forward pass (build tape)
-    # -----------------------------
     with tape():
-        output = fun(*args)
+        out = fun(*original_args)
 
     tape_records = TAPE_STACK[-1] if TAPE_STACK else []
 
-    # Init gradient for output
-    grads = { _id(_extract_np(output)) : b.xp().ones_like(_extract_np(output)) }
+    grads = { _id(out): b.xp().ones_like(out) }
 
-    # -----------------------------
-    # 2) Backward pass
-    # -----------------------------
     for node in reversed(tape_records):
-        g_out = grads.get(_id(_extract_np(node.out)))
-        if g_out is None:
+        g = grads.get(_id(node.out))
+        if g is None:
             continue
 
-        parent_grads = node.grad_fn(g_out)
+        parent_grads = node.grad_fn(g)
 
-        for parent, parent_grad in zip(node.parents, parent_grads):
-            pid = _id(_extract_np(parent))
+        for p, pg in zip(node.parents, parent_grads):
+            pid = _id(p)
+            grads[pid] = grads.get(pid, 0) + pg
 
-            # normalize to numpy
-            pg = _extract_np(parent_grad)
-
-            if pid in grads:
-                grads[pid] = NDarray(grads[pid] + pg)
-            else:
-                grads[pid] = NDarray(pg)
-
-    return output, grads
+    return out, grads
 
 
 # ================================================================
 # PUBLIC API: grad()
 # ================================================================
-def grad(fun: Callable, argnum: Union[int, tuple, list, None] = None) -> Callable:
-    """
-    JAX-like grad supporting:
-        - int -> single argument
-        - tuple/list -> multiple arguments
-        - None -> all arguments
-    Accepts *args as unpacked or single list/tuple of NDarrays.
-    """
+def grad(fun):
     def wrapped(*args):
-        # Flatten if user passed a single list/tuple
-        if len(args) == 1 and isinstance(args[0], (list, tuple)):
-            args_flat = tuple(args[0])
-        else:
-            args_flat = args
 
-        if any(not isinstance(a, NDarray) for a in args_flat):
-            raise TypeError("Only NDarray arguments supported")
+        # -------------------------------------------------------
+        # Expand Cells into their parameters before flattening
+        # -------------------------------------------------------
+        expanded_args = []
+        for a in args:
+            repl = expand_cell(a)
+            expanded_args.append(repl if repl is not None else a)
 
-        out, gdict = _backward(fun, args_flat, argnums=argnum)
+        leaves, treedef = flatten_pytree(expanded_args)
+        diff_leaves = [x for x in leaves if is_leaf(x)]
 
-        # Normalize argnums
-        if argnum is None:
-            target_ids = [_id(a) for a in args_flat]
-            indices = list(range(len(args_flat)))
-        elif isinstance(argnum, int):
-            target_ids = [_id(args_flat[argnum])]
-            indices = [argnum]
-        else:  # tuple or list
-            target_ids = [_id(args_flat[i]) for i in argnum]
-            indices = list(argnum)
+        out, gdict = _backward(fun, args, diff_leaves)
 
-        # Collect gradients
-        results = [
-            gdict.get(tid, _zero_like(args_flat[i]))
-            for i, tid in zip(indices, target_ids)
-        ]
+        flat_grads = []
+        for leaf in leaves:
+            if is_leaf(leaf):
+                gid = _id(leaf)
+                flat_grads.append(gdict.get(gid, b.xp().zeros_like(leaf.np)))
+            else:
+                flat_grads.append(None)
 
-        if isinstance(argnum, int):
-            return results[0]
-        res = tuple(results)
-        return res[0] if len(res) == 1 else list(res)
+        grads_tree = unflatten_pytree(flat_grads, treedef)
+
+        return grads_tree[0] if len(args) == 1 else grads_tree
 
     return wrapped
-
 
 
 # ================================================================
 # PUBLIC API: value_and_grad()
 # ================================================================
+def value_and_grad(fun: Callable, argnum: Union[int, tuple, list, None] = None) -> Callable:
 
-def value_and_grad(fun: Callable, argnum: Union[int, tuple, list, None]=None) -> Callable:
-    """
-    Return (value, grads)
-    Supports:
-      - *args as unpacked NDarrays
-      - single list/tuple of NDarrays
-    """
     def wrapped(*args):
-        # Flatten if user passed a single list/tuple
-        if len(args) == 1 and isinstance(args[0], (list, tuple)):
-            args_flat = tuple(args[0])
-        else:
-            args_flat = args
 
-        if any(not isinstance(a, NDarray) for a in args_flat):
-            raise TypeError("Only NDarray arguments supported")
+        # -------------------------------------------------------
+        # Expand Cells into list of parameters
+        # -------------------------------------------------------
+        expanded_args = []
+        for a in args:
+            repl = expand_cell(a)
+            expanded_args.append(repl if repl is not None else a)
 
-        out, gdict = _backward(fun, args_flat, argnums=argnum)
+        # Normal flatten
+        leaves, treedef = flatten_pytree(expanded_args)
+        diff_leaves = [x for x in leaves if is_leaf(x)]
 
-        # Normalize argnums
-        if argnum is None:
-            target_ids = [_id(a) for a in args_flat]
-            grad_vals = tuple(gdict.get(t, _zero_like(a)) for t, a in zip(target_ids, args_flat))
-        elif isinstance(argnum, int):
-            target_id = _id(args_flat[argnum])
-            grad_vals = gdict.get(target_id, _zero_like(args_flat[argnum]))
-        else:  # tuple or list
-            target_ids = [_id(args_flat[i]) for i in argnum]
-            grad_vals = tuple(gdict.get(t, _zero_like(args_flat[i])) for t, i in zip(target_ids, argnum))
+        out, gdict = _backward(fun, args, diff_leaves)
 
-        return out, grad_vals[0] if isinstance(grad_vals, tuple) and len(grad_vals)==1 else list(grad_vals)
+        flat_grads = []
+        for leaf in leaves:
+            if is_leaf(leaf):
+                gid = _id(leaf)
+                flat_grads.append(gdict.get(gid, b.xp().zeros_like(leaf.np)))
+            else:
+                flat_grads.append(None)
+
+        grads_tree = unflatten_pytree(flat_grads, treedef)
+
+        return out, grads_tree[0] if len(args) == 1 else grads_tree
 
     return wrapped

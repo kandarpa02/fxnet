@@ -21,6 +21,7 @@ from .._typing import Array as A
 from ..base import function
 from ..utils import broadcast_backward
 from ...backend.backend import xp
+from .primitive_array_ops import squeeze
 
 # Allow scalars as valid inputs
 Array = A | int | float
@@ -333,7 +334,7 @@ def matmul(a: Array, b: Array):
             if A.ndim == 1:              # vector @ matrix
                 A2 = lib.expand_dims(A, 0)  # (1, K)
                 G2 = G if G.ndim > 1 else lib.expand_dims(G, 0)
-                dA = lib.squeeze(G2 @ lib.swapaxes(B, -1, -2), 0)
+                dA = squeeze(matmul(G2, lib.swapaxes(B, -1, -2)), 0)
             else:
                 dA = G @ lib.swapaxes(B, -1, -2)
 
@@ -343,9 +344,9 @@ def matmul(a: Array, b: Array):
             if B.ndim == 1:              # matrix @ vector
                 B2 = lib.expand_dims(B, -1)  # (K, 1)
                 G2 = G if G.ndim > 1 else lib.expand_dims(G, -1)
-                dB = lib.squeeze(lib.swapaxes(A, -1, -2) @ G2, -1)
+                dB = squeeze(matmul(lib.swapaxes(A, -1, -2), G2), -1)
             else:
-                dB = lib.swapaxes(A, -1, -2) @ G
+                dB = matmul(lib.swapaxes(A, -1, -2), G)
 
             return as_nd(dA), as_nd(dB)
 

@@ -5,8 +5,9 @@ import numpy as np
 class Linear(ft.Cell):
     def __init__(self, _in, out):
         super().__init__()
-        self.w = ft.Variable(np.random.rand(_in, out))
-        self.b = ft.Variable(np.zeros(out))
+        np.random.seed(0)
+        self.w = ft.Variable(np.random.rand(_in, out), name='weight')
+        self.b = ft.Variable(np.zeros(out), name='bias')
 
 
     def call(self, x):
@@ -24,8 +25,17 @@ class Model(ft.Cell):
 
 model = Model()
 
+np.random.seed(0)
 a = nd.array(np.random.rand(4, 5))
 params = list(model.parameters())
+print(params[0])
 
-print(model(a))
-print(params)
+# print(ft.value_and_grad(lambda model: model(a))(model))
+
+a = {'d':nd.array(4.), 'g':nd.array(2.)}
+b = ft.Variable(4.)
+
+def fun(dic, x, y): 
+    return (dic.get('d')*x) ** dic.get('g') / y
+
+# print(ft.grad(lambda d, y:fun(d, 4., y))(a, b))
