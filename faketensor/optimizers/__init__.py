@@ -1,2 +1,2 @@
 from .base import Optimizer
-from .gradient_descent import GradientDescent
+from .gradient_descent import GradientDescent, SGD

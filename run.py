@@ -1,30 +1,31 @@
 import faketensor as ft 
-from faketensor import ndarray as nd
 import numpy as np
+from faketensor import ndarray as nd
 
-class Linear(ft.Cell):
+class Linear(ft.nn.Cell):
     def __init__(self, _in, out):
-        super().__init__()
+        super().__init__(name='linear')
         np.random.seed(0)
-        self.w = ft.Variable(np.random.rand(_in, out), name='weight')
-        self.b = ft.Variable(np.zeros(out), name='bias')
+        self.weights = ft.Variable(np.random.rand(_in, out))
+        self.bias = ft.Variable(np.zeros(out))
 
 
     def call(self, x):
-        return ft.matmul(x, self.w) + self.b
+        return ft.matmul(x, self.weights) + self.bias
 
-class Model(ft.Cell):
+class Model(ft.nn.Cell):
     def __init__(self):
         super().__init__()
-        self.f1 = Linear(3, 1)
+        self.f1 = Linear(3, 5)
+        self.f2 = Linear(5, 2)
+        self.f3 = Linear(2, 1)
 
     def call(self, x):
-        return self.f1(x)
+        return self.f3(self.f2(self.f1(x)))
     
 
 model = Model()
-optimizer = ft.GradientDescent(model, lr=0.2)
-
+optimizer = ft.optimizers.SGD(model, lr=0.2)
 
 np.random.seed(0)
 a = nd.array(np.random.rand(20, 3))
@@ -35,24 +36,22 @@ def loss_f(model, x, y):
     loss = ft.mean((pred - y) ** 2)
     return loss
 
-# def steps(epochs):
-#     for e in range(epochs+1):
+print("Params\n", list(model.parameters()))
+
+for i in model.parameters():
+    if i.name in ['Model.f1.weights', 'Model.f2.weights']:
+        print(i.name)
+        i.freeze()
+
+print("Train Params\n", list(model.trainable_parameters()))
+
 out, grads = ft.value_and_grad(lambda model:loss_f(model, a, b))(model)
+
+
 optimizer.update(grads)
 
 state = optimizer.get_state()
 
 optimizer.load_state(state)
 
-# print(optimizer)
-
-@ft.jit
-def f(x, y):
-    print("Tracing")
-    return (x * x) / y
-
-a = nd.array(3.)
-b = nd.array(4.)
-
-print(f(a, b))
-print(f(a, b))
+print(optimizer)

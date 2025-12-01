@@ -1,5 +1,5 @@
-from ..neural_nets.base import Cell
-from ..neural_nets.parameters import Variable, NDarray
+from ..nn.base import Cell
+from ..nn.parameters import Variable, NDarray
 from typing import Dict, Any
 
 

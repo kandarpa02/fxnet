@@ -2,8 +2,8 @@ from typing import Callable, Any, Tuple, Union
 from ...backend import backend as b
 from ..base import TAPE_STACK, tape
 from ..array import NDarray
-from ...neural_nets.parameters import Variable
-from ...neural_nets.base import Cell
+from ...nn.parameters import Variable
+from ...nn.base import Cell
 from typing import Dict, Any
 from ..tree_util import flatten_pytree, register_tree_node, unflatten_pytree
 
@@ -13,8 +13,12 @@ from ..tree_util import flatten_pytree, register_tree_node, unflatten_pytree
 # ================================================================
 
 def is_leaf(x):
-    """Only NDarray/Variable are differentiable leaves. Cell is NOT."""
-    return getattr(x, "__is_leaf__", False)
+    """
+    Only NDarray/Variable with train=True should get gradients.
+    """
+    if isinstance(x, (NDarray, Variable)):
+        return getattr(x, "train", False)
+    return False
 
 
 def expand_cell(x):
@@ -45,10 +49,8 @@ def expand_cell(x):
         List of parameters if `x` is a Cell, or None otherwise.
     """
     if isinstance(x, Cell):
-        return list(x.parameters())
+        return list(x.trainable_parameters())
     return None
-
-
 
 def _extract_np(x):
     return x.np if is_leaf(x) else x
@@ -127,14 +129,37 @@ def _backward(fun, original_args, diff_leaves):
 
     grads = { _id(out): b.xp().ones_like(out) }
 
+    # for node in reversed(tape_records):
+    #     g = grads.get(_id(node.out))
+    #     if g is None:
+    #         continue
+
+    #     parent_grads = node.grad_fn(g)
+
+    #     for p, pg in zip(node.parents, parent_grads):
+    #         pid = _id(p)
+    #         grads[pid] = grads.get(pid, 0) + pg
+
+    # return out, grads
+
     for node in reversed(tape_records):
         g = grads.get(_id(node.out))
         if g is None:
             continue
 
-        parent_grads = node.grad_fn(g)
+        raw_parent_grads = node.grad_fn(g)
+
+        # Block grads for non-trainable tensors
+        parent_grads = []
+        for p, pg in zip(node.parents, raw_parent_grads):
+            if is_leaf(p):
+                parent_grads.append(pg)
+            else:
+                parent_grads.append(None)
 
         for p, pg in zip(node.parents, parent_grads):
+            if pg is None:
+                continue
             pid = _id(p)
             grads[pid] = grads.get(pid, 0) + pg
 
