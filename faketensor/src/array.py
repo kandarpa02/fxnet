@@ -117,8 +117,11 @@ class NDarray(Array):
     def __int__(self):
         return int(self.np)
     
-    # def __index__(self):
-    #     return int(self.np)
+    def __setitem__(self, k, v):
+        self.np[k] = v
+
+    def __getitem__(self, id):
+        return NDarray(self.np[id])
     
     # -------------------------
     # Array makers
