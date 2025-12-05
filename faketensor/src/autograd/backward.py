@@ -129,19 +129,6 @@ def _backward(fun, original_args, diff_leaves):
 
     grads = { _id(out): b.xp().ones_like(out) }
 
-    # for node in reversed(tape_records):
-    #     g = grads.get(_id(node.out))
-    #     if g is None:
-    #         continue
-
-    #     parent_grads = node.grad_fn(g)
-
-    #     for p, pg in zip(node.parents, parent_grads):
-    #         pid = _id(p)
-    #         grads[pid] = grads.get(pid, 0) + pg
-
-    # return out, grads
-
     for node in reversed(tape_records):
         g = grads.get(_id(node.out))
         if g is None:
