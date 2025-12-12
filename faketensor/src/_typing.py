@@ -16,6 +16,9 @@ class Array(Protocol):
     @property
     def shape(self:T) -> Any: ...
 
+    @property
+    def ndim(self:T) -> Any: ...
+
     def __add__(self: T, other: T) -> T:
         ...
     

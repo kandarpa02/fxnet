@@ -7,7 +7,7 @@ class Variable(NDarray):
         self.train = True
         self.name = name if name is not None else 'Variable'
 
-    __module__ = "faketensor"
+    __module__ = "faketensor.nn"
     __qualname__ = "Variable"
 
     @property

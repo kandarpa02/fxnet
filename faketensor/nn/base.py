@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Generator
 from .parameters import Variable, Parameter
 from ..src.tree_util import register_tree_node
 
@@ -51,7 +51,7 @@ class Cell:
         ```
     """
 
-    def __init__(self, name: str = None):   #type:ignore
+    def __init__(self, name: str|None = None):   #type:ignore
         super().__setattr__("_cell_name", name if name is not None else self.__class__.__name__)
         super().__setattr__("local_params", Parameter())
 
@@ -110,7 +110,7 @@ class Cell:
             self.local_params.append(value)  #type:ignore
 
     # Parameter recursion
-    def parameters(self):
+    def parameters(self, return_tuple=False)->tuple[Parameter]|Generator:
         """Returns all parameters (trainable + non-trainable) in this cell.
 
         This includes parameters defined in:
@@ -121,14 +121,18 @@ class Cell:
             A generator yielding `Variable` objects.
         """
 
-        for p in self.local_params:   #type:ignore
-            yield p
+        def gather():
+            for p in self.local_params:   #type:ignore
+                yield p 
 
-        for v in self.__dict__.values():
-            if isinstance(v, Cell):
-                yield from v.parameters()
+            for v in self.__dict__.values():
+                if isinstance(v, Cell):
+                    yield from v.parameters()
 
-    def trainable_parameters(self):
+        return tuple(gather()) if return_tuple else gather()
+
+
+    def trainable_parameters(self, return_tuple=False)->tuple[Parameter]|Generator:
         """Returns all trainable parameters in this cell.
 
         A parameter is considered trainable if `param.train == True`.
@@ -136,16 +140,18 @@ class Cell:
         Returns:
             A generator yielding trainable `Variable` objects.
         """
+        def gather():
+            for p in self.local_params:  #type:ignore
+                if p.train:
+                    yield p
+                else:
+                    pass
 
-        for p in self.local_params:  #type:ignore
-            if p.train:
-                yield p
-            else:
-                pass
+            for v in self.__dict__.values():
+                if isinstance(v, Cell):
+                    yield from v.trainable_parameters()
 
-        for v in self.__dict__.values():
-            if isinstance(v, Cell):
-                yield from v.trainable_parameters()
+        return tuple(gather()) if return_tuple else gather()
 
     def parameters_upload(self, new_params):
         """Replaces trainable parameters with an updated list.
@@ -165,6 +171,10 @@ class Cell:
 
         for old, new in zip(self.trainable_parameters(), new_params):
             old.np[...] = new.np
+
+    def apply(self, params, *args, **kwargs):
+        self.parameters_upload(params)
+        return self(*args, **kwargs)
 
     def __call__(self, *args, **kwargs):
         return self.call(*args, **kwargs)

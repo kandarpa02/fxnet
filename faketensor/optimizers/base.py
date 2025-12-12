@@ -108,3 +108,17 @@ class Optimizer:
         """
         new_params = self.update_rule(grads=grads)
         self.model.parameters_upload(new_params)
+
+
+    def update_and_get_params(self, grads):
+        """Applies a single optimization step.
+
+        This method:
+        1. Computes updated parameters via `update_rule(grads=grads)`.
+        2. Returns the params for functional usage.
+
+        Args:
+            grads: A list of gradients corresponding to the model’s
+                trainable parameters.
+        """
+        return self.update_rule(grads=grads)
