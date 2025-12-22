@@ -1,7 +1,7 @@
 from ._typing import Array as A
 from ..backend.backend import xp    # unified backend (numpy OR cupy)
 from .functions import *
-from .functions.comparison import equal, not_equal, greater, greater_equal, less, less_equal
+from .functions.comparison import equal, not_equal, greater, greater_equal, less, less_equal, logical_not
 from typing import Optional
 from typing import Union
 from .DType import DType
@@ -91,7 +91,7 @@ class NDarray(A):
     def __len__(self):
         return len(self.np)
 
-    def astype(self, dtype:Dtype):
+    def astype(self, dtype:_Dtype):
         from ..src.ndarray.utils import astype
         """Return a new NDarray with the same values, different dtype."""
         return astype(self, dtype)
@@ -160,6 +160,9 @@ class NDarray(A):
     
     def __matmul__(self, other):
         return matmul(self, other)
+    
+    def __invert__(self):
+        return logical_not(self)
 
     @property
     def T(self):

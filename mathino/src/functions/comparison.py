@@ -139,3 +139,18 @@ def greater_equal(x: Array, y: Array):
         return out, (as_nd(x), as_nd(y)), grad_fn
 
     return function(_fun)(x, y)
+
+
+def logical_not(x: A):
+    lib = xp()
+
+    def _fun(x):
+        out = lib.logical_not(x)
+        from ..array import as_nd
+
+        def grad_fn(g):
+            return None  # non-differentiable
+
+        return as_nd(out), (as_nd(x),), grad_fn
+
+    return function(_fun)(x)

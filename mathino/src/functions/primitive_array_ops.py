@@ -147,7 +147,7 @@ def clip(x: Array, min_val, max_val):
 
     def _fun(x):
         from ..array import as_nd
-        from .primitive_arithmetic import multiply as mul
+        from .primitive_arithmetic_and_basic_ops import multiply as mul
         x_nd = as_nd(x)
         out = as_nd(lib.clip(x_nd, min_val, max_val))
 

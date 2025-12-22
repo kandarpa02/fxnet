@@ -228,6 +228,51 @@ def log(x: Array):
 
     return function(_fun)(x)
 
+# =====================================================================
+# EXP
+# =====================================================================
+
+def exp(x:Array):
+    lib = xp()
+    def _fun(x):
+        from ..array import as_nd
+        out = as_nd(lib.exp(x))
+        def grad_fn(g):
+            return (multiply(g, out),)
+        
+        return out, (as_nd(x), ), grad_fn
+    return function(_fun)(x)
+
+
+# =====================================================================
+# SQRT
+# =====================================================================
+
+def sqrt(x:Array):
+    return x**(-2)
+
+# =====================================================================
+# RECIPROCAL
+# =====================================================================
+        
+def reciprocal(x:Array):
+    return 1/x
+
+# =====================================================================
+# Sign
+# =====================================================================
+def sign(x:Array):
+    lib = xp()
+    def _fun(x):
+        from ..array import as_nd
+        out = as_nd(lib.sign(x))
+        def grad_fn(g):
+            return (as_nd(lib.zeros_like(x)),)
+        
+        return out, (as_nd(x),), grad_fn
+    return function(_fun)(x)
+
+
 
 # =====================================================================
 # POWER (x ** y)
