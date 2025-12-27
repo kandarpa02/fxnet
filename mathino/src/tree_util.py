@@ -1,5 +1,6 @@
 from dataclasses import is_dataclass, fields
 from typing import Any, Callable, List, Tuple, Dict, Type
+MAP = map
 
 # Registry for custom container types
 _PYTREE_REGISTRY: Dict[Type, Callable] = {}
@@ -110,7 +111,7 @@ def _unflatten(it, treedef: TreeDef):
     raise TypeError(f"Unsupported treedef: {treedef}")
 
 
-def tree_map(fun, tree):
+def map(fun, tree):
     _x, _def = flatten_pytree(tree)
-    x = list(map(fun, _x))
+    x = list(MAP(fun, _x))
     return unflatten_pytree(x, _def)

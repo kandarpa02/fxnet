@@ -33,8 +33,8 @@ def maximum(x:A, y:A):
             gx = g * (x >= y)
             gy = g * (y > x)
             return (
-                broadcast_backward(gx, x),
-                broadcast_backward(gy, y),
+                broadcast_backward(gx, x.shape),
+                broadcast_backward(gy, y.shape),
             )
         
         return as_nd(out), (as_nd(x), as_nd(y)), grad_fn
@@ -56,8 +56,8 @@ def minimum(x:A, y:A):
             gx = g * (x <= y)
             gy = g * (y < x)
             return (
-                broadcast_backward(gx, x),
-                broadcast_backward(gy, y),
+                broadcast_backward(gx, x.shape),
+                broadcast_backward(gy, y.shape),
             )
 
         return as_nd(out), (as_nd(x), as_nd(y)), grad_fn
@@ -81,8 +81,8 @@ def where(cond: A, x: A, y: A):
 
             return (
                 None,  # no gradient for condition
-                broadcast_backward(gx, x),
-                broadcast_backward(gy, y),
+                broadcast_backward(gx, x.shape),
+                broadcast_backward(gy, y.shape),
             )
 
         return (

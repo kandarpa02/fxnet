@@ -11,7 +11,8 @@ from .src.DType import (
     float16, float32, float64, bool_
 )
 from . import nn
-from .src.tree_util import register_tree_node, flatten_pytree, unflatten_pytree
+# from .src.tree_util import register_tree_node, flatten_pytree, unflatten_pytree
+from . import tree
 from . import optimizers
 
 from .src.ndarray.utils import astype

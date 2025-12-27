@@ -1,7 +1,9 @@
 from typing import Any, Generator
 from .parameters import Variable, Parameter
 from ..src.tree_util import register_tree_node
+from ..backend import backend as b
 
+lib = b.xp()
 
 class Cell:
     """Base class for all neural network components in FakeTensor.
@@ -200,6 +202,16 @@ class Cell:
             NotImplementedError: If the subclass does not override this method.
         """
         raise NotImplementedError
+    
+    def cast(self, dtype):
+        from ..src.DType import normalize_dtype
+        dt = normalize_dtype(dtype)
+        for p in self.local_params:  #type:ignore
+            p.np = p.np.astype(dt)
+        
+        for v in self.__dict__.values():
+            if isinstance(v, Cell):
+                v.cast(dtype)
 
 
 def flatten(cell: Cell):

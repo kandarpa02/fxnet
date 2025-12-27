@@ -26,3 +26,4 @@ def zeros_like(_data, dtype=None):
 def full_like(_data, value, dtype=None):
     dtype = normalize_dtype(dtype)
     return NDarray(b.xp().full_like(_data.np, value, dtype))
+
