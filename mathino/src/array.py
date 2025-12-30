@@ -112,6 +112,10 @@ class NDarray(A):
         """Allows NumPy to extract underlying data when needed."""
         return self.np
 
+    @property
+    def __cuda_array_interface__(self):
+        return self.np.__cuda_array_interface__
+
     __array_priority__ = 200 
 
     def __float__(self):
