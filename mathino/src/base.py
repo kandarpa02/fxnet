@@ -27,6 +27,7 @@ from ._typing import Array
 # When True, primitives executed inside a `tape()` block
 # append a Node(out, parents, grad_fn) into the active tape.
 _RECORDING = True
+JIT = False
 
 # The tape stack enables nested tapes.
 # Each active tape is a list of Node objects.
@@ -80,6 +81,16 @@ def no_record():
         yield
     finally:
         _RECORDING = prev
+
+@contextmanager
+def tracing():
+    global JIT
+    prev = JIT
+    JIT = True
+    try:
+        yield
+    finally:
+        JIT = prev
 
 @dataclass
 class Node:
@@ -181,5 +192,7 @@ class function:
         t = active_tape()
         if t is not None and _RECORDING:
             t.append(Node(out, parents, grad_fn))
-        
+
+        # if JIT:
+        #     sym = Symbol(self.fun, len(args))
         return out

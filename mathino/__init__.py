@@ -17,3 +17,4 @@ from . import tree
 from . import optimizers
 
 from .src.ndarray.utils import astype
+# from .src.eager_fusion import fuse
