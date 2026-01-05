@@ -19,6 +19,9 @@ from ...backend.backend import xp
 
 Array = A   # alias
 
+def unwrap(x):
+    from ..array import NDarray
+    return x.np if isinstance(x, NDarray) else x
 
 # =====================================================================
 # RESHAPE
@@ -43,13 +46,13 @@ def reshape(x: Array, shape):
     def _fun(x):
         from ..array import as_nd
         from . import reshape
-        x_nd = as_nd(x)
-        out = as_nd(lib.reshape(x_nd, shape))
+        # x_nd = as_nd(x)
+        out = as_nd(lib.reshape(unwrap(x), shape))
 
         def grad_fn(g):
-            return reshape(g, x_nd.shape),
+            return reshape(g, x.shape),
 
-        return out, (x_nd,), grad_fn
+        return out, (as_nd(x),), grad_fn
 
     return function(_fun)(x)
 
@@ -77,13 +80,13 @@ def expand_dims(x: Array, axis):
     def _fun(x):
         from ..array import as_nd
         from . import squeeze
-        x_nd = as_nd(x)
-        out = as_nd(lib.expand_dims(x_nd, axis))
+        x = unwrap(x)
+        out = as_nd(lib.expand_dims(x, axis))
 
         def grad_fn(g):
             return squeeze(g, axis=axis),
 
-        return out, (x_nd,), grad_fn
+        return out, (as_nd(x),), grad_fn
 
     return function(_fun)(x)
 
@@ -112,7 +115,7 @@ def squeeze(x: Array, axis=None):
         from ..array import as_nd
         from . import expand_dims
         x_nd = as_nd(x)
-        out = as_nd(lib.squeeze(x_nd, axis=axis))
+        out = as_nd(lib.squeeze(unwrap(x), axis=axis))
 
         def grad_fn(g):
             # Note: expand_dims requires exact axis integer or tuple.
@@ -149,7 +152,7 @@ def clip(x: Array, min_val, max_val):
         from ..array import as_nd
         from .primitive_arithmetic_and_basic_ops import multiply as mul
         x_nd = as_nd(x)
-        out = as_nd(lib.clip(x_nd, min_val, max_val))
+        out = as_nd(lib.clip(unwrap(x), min_val, max_val))
 
         def grad_fn(g):
             mask = (x_nd >= min_val) & (x_nd <= max_val)
@@ -183,10 +186,10 @@ def abs(x: Array):
     def _fun(x):
         from ..array import as_nd
         x_nd = as_nd(x)
-        out = as_nd(lib.abs(x_nd))
+        out = as_nd(lib.abs(as_nd(x)))
 
         def grad_fn(g):
-            return as_nd(g * lib.sign(x_nd)),
+            return as_nd(g * lib.sign(unwrap(x))),
 
         return out, (x_nd,), grad_fn
 
