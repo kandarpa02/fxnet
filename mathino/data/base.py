@@ -79,9 +79,10 @@ class ArrayLoader:
     def reset(self):
         """Call once per epoch"""
         if self.shuffle:
-            self._epoch_indices = self.rng.permutation(self.base_indices)
+            self._epoch_indices = lib.random.permutation(self.base_indices)
         else:
             self._epoch_indices = self.base_indices
+
 
     # -------------------------------------------------
     def __len__(self):
