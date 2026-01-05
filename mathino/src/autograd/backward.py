@@ -22,32 +22,6 @@ def is_leaf(x):
 
 
 def expand_cell(x):
-    """
-    Expand a `Cell` into its underlying trainable parameters.
-
-    Purpose
-    -------
-    FakeTensor supports pytree-style transformation (like JAX).
-    When applying `grad()` or `value_and_grad()`, the system must know
-    which components of `args` correspond to differentiable objects.
-
-    A `Cell` is a container (like `torch.nn.Module`) that stores Variables.
-    It is *not* differentiable itself, but its parameters are.
-
-    Behavior
-    --------
-    • If `x` is a `Cell`, return `list(x.parameters())`.
-    • Otherwise, return `None`, meaning “use x as-is”.
-
-    This allows pytree flattening to treat:
-        grad(f, cell)  →  parameters of the cell
-    rather than treating Cell as undifferentiable.
-
-    Returns
-    -------
-    list or None
-        List of parameters if `x` is a Cell, or None otherwise.
-    """
     if isinstance(x, Cell):
         return list(x.trainable_parameters())
     return None
@@ -131,35 +105,54 @@ def _backward(fun, original_args, diff_leaves):
     tuple
         (output_of_fun, gradient_dict)
     """
+    # ------------------------------------------------------------
+    # Forward pass (trace)
+    # ------------------------------------------------------------
     with tape():
         _out = fun(*original_args)
-        out = _out[0] if isinstance(_out, tuple|list) else _out
+        out = _out[0] if isinstance(_out, (tuple, list)) else _out
 
-    tape_records = TAPE_STACK[-1] if TAPE_STACK else []
+    tape_records = TAPE_STACK.pop() if TAPE_STACK else []
 
-    grads = { _id(out): b.xp().ones_like(_extract_np(out)) }
+    # ------------------------------------------------------------
+    # Gradient storage
+    # ------------------------------------------------------------
+    grads = {
+        _id(out): b.xp().ones_like(_extract_np(out))
+    }
 
+    # ------------------------------------------------------------
+    # Reverse pass
+    # ------------------------------------------------------------
     for node in reversed(tape_records):
-        g = grads.get(_id(node.out))
+
+        out_id = _id(node.out)
+        g = grads.get(out_id)
         if g is None:
             continue
 
-        _raw_parent_grads = node.grad_fn(g)
-        raw_parent_grads = norm_tuple((_raw_parent_grads,))
+        # grad_fn may return:
+        #   single grad
+        #   tuple of grads
+        raw_parent_grads = norm_tuple((node.grad_fn(g),))
 
-        # Block grads for non-trainable tensors
-        parent_grads = []
-        for p, pg in zip(node.parents, raw_parent_grads):
-            if is_leaf(p):
-                parent_grads.append(pg)
-            else:
-                parent_grads.append(None)
-
-        for p, pg in zip(node.parents, parent_grads):
-            if pg is None:
+        # Accumulate only into trainable leaves
+        for parent, pg in zip(node.parents, raw_parent_grads):
+            if pg is None or not is_leaf(parent):
                 continue
-            pid = _id(p)
-            grads[pid] = grads.get(pid, 0) + pg
+
+            pid = _id(parent)
+            if pid in grads:
+                grads[pid] += pg
+            else:
+                grads[pid] = pg
+                
+    for node in tape_records:
+        node.parents = None
+        node.grad_fn = None
+        node.out = None
+
+    tape_records.clear()
 
     return _out, grads
 
