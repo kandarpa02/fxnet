@@ -1,14 +1,16 @@
-import numpy as np
+# import numpy as lib
+from ..backend.backend import xp
 import math
 from typing import Tuple, List
 from ..src.ndarray.base import array
 
+lib = xp()
 
 def _check_lengths(arrays):
     n = len(arrays[0])
     for a in arrays:
         if len(a) != n:
-            raise ValueError("All input arrays must have the same length")
+            raise ValueError("All ilibut arrays must have the same length")
     return n
 
 
@@ -27,13 +29,13 @@ class ArrayLoader:
         self.batch_size = int(batch_size)
         self.shuffle = shuffle
         self.drop_last = drop_last
-        self.rng = np.random.default_rng(seed)
+        self.rng = lib.random.default_rng(seed)
 
         # ---- validate ----
         n = _check_lengths(arrays)
 
         # ---- base indices ----
-        indices = np.arange(n, dtype=np.int64)
+        indices = lib.arange(n, dtype=lib.int64)
 
         # ---- split ----
         if split is not None:
@@ -50,7 +52,7 @@ class ArrayLoader:
             sizes = [(n * s) // 100 for s in split]
             sizes[-1] = n - sum(sizes[:-1])
 
-            bounds = np.cumsum([0] + sizes)
+            bounds = lib.cumsum([0] + sizes)
             if part >= len(sizes):
                 raise ValueError("part index out of range")
 
@@ -99,7 +101,7 @@ class ArrayLoader:
 
         # Controlled allocation: one copy per batch, no leaks
         batch = [
-            array(np.take(a, batch_idx, axis=0))
+            array(lib.take(a, batch_idx, axis=0))
             for a in self.arrays
         ]
 
