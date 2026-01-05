@@ -26,7 +26,7 @@ from .primitive_reduct import max
 
 # Allow scalars as valid inputs
 Array = A | int | float
-
+from .utils import unwrap
 
 # =====================================================================
 # ADD
@@ -334,14 +334,14 @@ def transpose(x: Array, axes=None):
         from ..array import as_nd
         from . import transpose
 
-        out = as_nd(lib.transpose(x, axes=axes))
+        out = as_nd(lib.transpose(unwrap(x), axes=axes))
 
         def grad_fn(g):
             if axes is None:
                 rev_axes = None
             else:
                 rev_axes = tuple(lib.argsort(lib.array(axes)))
-            return as_nd(transpose(g, axes=rev_axes)),
+            return transpose(g, axes=rev_axes),
 
         return out, (as_nd(x),), grad_fn
 
