@@ -1,19 +1,20 @@
-# import numpy as lib
-from ..backend.backend import xp
+from typing import Tuple
 import math
-from typing import Tuple, List
+from ..backend.backend import xp
 from ..src.ndarray.base import array
 
-lib = xp()
+lib = xp()  # backend: numpy or cupy
 
+# ---------------------------------------
+# Utility to check all arrays have same length
 def _check_lengths(arrays):
     n = len(arrays[0])
     for a in arrays:
         if len(a) != n:
-            raise ValueError("All ilibut arrays must have the same length")
+            raise ValueError("All input arrays must have the same length")
     return n
 
-
+# ---------------------------------------
 class ArrayLoader:
     def __init__(
         self,
@@ -52,7 +53,10 @@ class ArrayLoader:
             sizes = [(n * s) // 100 for s in split]
             sizes[-1] = n - sum(sizes[:-1])
 
-            bounds = lib.cumsum([0] + sizes)
+            # ---- GPU/CPU-safe conversion ----
+            sizes_array = lib.array(sizes, dtype=lib.int64)
+            bounds = lib.cumsum(lib.concatenate([lib.array([0], dtype=lib.int64), sizes_array]))
+
             if part >= len(sizes):
                 raise ValueError("part index out of range")
 
@@ -72,7 +76,6 @@ class ArrayLoader:
         self.reset()
 
     # -------------------------------------------------
-
     def reset(self):
         """Call once per epoch"""
         if self.shuffle:
@@ -81,12 +84,10 @@ class ArrayLoader:
             self._epoch_indices = self.base_indices
 
     # -------------------------------------------------
-
     def __len__(self):
         return self.num_batches
 
     # -------------------------------------------------
-
     def __getitem__(self, batch_idx: int):
         if batch_idx < 0 or batch_idx >= self.num_batches:
             raise IndexError("batch index out of range")
@@ -99,14 +100,13 @@ class ArrayLoader:
 
         batch_idx = self._epoch_indices[start:end]
 
-        # Controlled allocation: one copy per batch, no leaks
+        # ---- GPU/CPU-safe batch allocation ----
         batch = [
-            array(lib.take(a, batch_idx, axis=0))
+            array(lib.take(a.data if hasattr(a, "data") else a, batch_idx, axis=0))
             for a in self.arrays
         ]
 
         return batch[0] if len(batch) == 1 else batch
-
 
 def array_loader(
         *args,
