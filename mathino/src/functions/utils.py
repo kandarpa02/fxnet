@@ -6,17 +6,9 @@ from ...backend.backend import xp
 from .primitive_reduct import sum
 from ..utils import broadcast_backward
 
-# def broadcast_backward(grad: A, x_shape: tuple):
-#     # Remove leading dims added by broadcasting
-#     while len(grad.shape) > len(x_shape):
-#         grad = sum(grad, axis=0)
-
-#     # Reduce along broadcasted axes
-#     for i, (sx, sg) in enumerate(zip(x_shape, grad.shape)):
-#         if sx == 1 and sg != 1:
-#             grad = sum(grad, axis=i, keepdims=True)
-
-#     return grad
+def unwrap(x):
+    from ..array import NDarray
+    return x.np if isinstance(x, NDarray) else x
 
 # =====================================================================
 # Maximum
