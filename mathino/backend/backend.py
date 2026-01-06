@@ -47,8 +47,18 @@ set_device("auto")
 
 
 def xp():
-    """Return active array module (numpy or cupy)."""
-    return _xp
+    try:
+        import cupy as cp
+        try:
+            cp.cuda.runtime.getDeviceCount()
+            return cp
+        except Exception:
+            pass
+    except ImportError:
+        pass
+
+    import numpy as np
+    return np
 
 
 def get_device():
