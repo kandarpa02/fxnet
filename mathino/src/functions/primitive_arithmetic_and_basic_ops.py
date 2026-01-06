@@ -388,9 +388,9 @@ def matmul(a: Array, b: Array):
             if A.ndim == 1:              # vector @ matrix
                 A2 = expand_dims(A, 0)  # (1, K)
                 G2 = G if G.ndim > 1 else expand_dims(G, 0)
-                dA = squeeze(matmul(G2, lib.swapaxes(B, -1, -2)), 0)
+                dA = squeeze(matmul(G2, lib.swapaxes(unwrap(B), -1, -2)), 0)
             else:
-                dA = G @ lib.swapaxes(B, -1, -2)
+                dA = G @ lib.swapaxes(unwrap(B), -1, -2)
 
             # ----------------------------
             # dB
@@ -398,9 +398,9 @@ def matmul(a: Array, b: Array):
             if B.ndim == 1:              # matrix @ vector
                 B2 = expand_dims(B, -1)  # (K, 1)
                 G2 = G if G.ndim > 1 else expand_dims(G, -1)
-                dB = squeeze(matmul(lib.swapaxes(A, -1, -2), G2), -1)
+                dB = squeeze(matmul(lib.swapaxes(unwrap(A), -1, -2), G2), -1)
             else:
-                dB = matmul(lib.swapaxes(A, -1, -2), G)
+                dB = matmul(lib.swapaxes(unwrap(A), -1, -2), G)
 
             return as_nd(dA), as_nd(dB)
 
