@@ -4,14 +4,14 @@ import os
 
 
 setup(
-    name="mathino",
+    name="tenx",
     version="0.0.1",
     author="Kandarpa Sarkar",
     author_email="kandarpaexe@gmail.com",
     description="A highly efficient autodiff library with a NumPy-like API",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
-    url="https://github.com/kandarpa02/mathino.git",
+    url="https://github.com/kandarpa02/tenx.git",
     packages=find_packages(),
     python_requires=">=3.8",
     install_requires = ["gdown", "xpy @ git+https://github.com/kandarpa02/xpy.git"],
