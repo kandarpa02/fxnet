@@ -11,10 +11,10 @@ setup(
     description="A highly efficient autodiff library with a NumPy-like API",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
-    url="https://github.com/kandarpa02/faketensor.git",
+    url="https://github.com/kandarpa02/mathino.git",
     packages=find_packages(),
     python_requires=">=3.8",
-    requires = ["gdown",],
+    install_requires = ["gdown", "xpy @ git+https://github.com/kandarpa02/xpy.git"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
