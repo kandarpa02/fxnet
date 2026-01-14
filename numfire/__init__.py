@@ -2,7 +2,7 @@
 # 3. Rest of imports (order no longer matters)
 from .data import data
 from .src.autograd.backward import grad, value_and_grad
-from .src import autograd
+from .src.autograd import Op
 from .src.base import no_record
 from .src.utils import custom_function
 from .src.functions import *

@@ -4,7 +4,7 @@ import os
 
 
 setup(
-    name="tenx",
+    name="numfire",
     version="0.0.1",
     author="Kandarpa Sarkar",
     author_email="kandarpaexe@gmail.com",

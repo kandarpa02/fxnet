@@ -134,7 +134,7 @@ def _backward(fun, original_args, diff_leaves):
         # grad_fn may return:
         #   single grad
         #   tuple of grads
-        raw_parent_grads = norm_tuple((node.grad_fn(g),))
+        raw_parent_grads = norm_tuple((node.grad_fn(NDarray(g)),))
 
         # Accumulate only into trainable leaves
         for parent, pg in zip(node.parents, raw_parent_grads):

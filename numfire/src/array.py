@@ -61,7 +61,6 @@ class NDarray(A):
         arr = as_ndarray(data)
         self.np = arr.astype(dtype) if dtype else arr
         self.train = True
-        self.symbol = None
         
     __is_leaf__ = True
     __module__ = "mathino"

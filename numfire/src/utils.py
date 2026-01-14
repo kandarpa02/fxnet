@@ -15,7 +15,7 @@ def broadcast_backward(grad: np.ndarray, x_shape: tuple) -> np.ndarray:
     return grad
 
 def custom_function(fun):
-    from .base import function
+    from .base import MakeOP
     """
     Define custom function and its gradient rule
 
@@ -47,4 +47,4 @@ def custom_function(fun):
             z = add_fun(x, y)
 
     """
-    return function(fun)
+    return MakeOP(fun)
