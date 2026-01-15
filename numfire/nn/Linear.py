@@ -12,7 +12,7 @@ class Linear(Cell):
         ```
         y = xW + b
         ```
-
+        
     where:
     - `W` is a learnable weight matrix of shape `(in_feat, out_feat)`.
     - `b` is an optional learnable bias vector of shape `(out_feat,)`.
