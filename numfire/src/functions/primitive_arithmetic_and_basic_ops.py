@@ -23,6 +23,10 @@ from ..utils import broadcast_backward
 from ...backend.backend import xp
 from .primitive_array_ops import squeeze
 from .primitive_reduct import max
+from .utils import maximum
+from ..ndarray.array_creation import zeros_like
+from xpy import primitive
+from .xpy_utils import get_dev
 
 # Allow scalars as valid inputs
 Array = A | int | float
@@ -47,12 +51,12 @@ def add(x: Array, y: Array):
         dx = broadcast_backward(g, x.shape)
         dy = broadcast_backward(g, y.shape)
     """
-    lib = xp()
+    d = get_dev(x, y) 
 
     def _fun(x, y):
         from ..array import as_nd
-
-        out = as_nd(lib.add(x, y))
+        _add = primitive(d, 'add')
+        out = as_nd(_add(x, y))
 
         def grad_fn(g):
             g1 = broadcast_backward(g, x.shape)
@@ -79,12 +83,13 @@ def subtract(x: Array, y: Array):
     Returns:
         A: Result of elementwise subtraction.
     """
-    lib = xp()
+    d = get_dev(x, y) 
 
     def _fun(x, y):
         from ..array import as_nd, negative
-
-        out = as_nd(lib.subtract(x, y))
+        
+        sub = primitive(d, 'subtract')
+        out = as_nd(sub(x, y))
 
         def grad_fn(g):
             g1 = broadcast_backward(g, x.shape)
@@ -110,12 +115,13 @@ def negative(x: Array):
     Returns:
         A: The negated tensor.
     """
-    lib = xp()
+    d = get_dev(x, y) 
 
     def _fun(x):
         from ..array import as_nd, negative as neg
-
-        out = as_nd(lib.negative(x))
+        
+        _neg = primitive(d, 'negative')
+        out = as_nd(_neg(x))
 
         def grad_fn(g):
             return neg(g),
@@ -140,13 +146,14 @@ def multiply(x: Array, y: Array):
     Returns:
         A: Result of elementwise multiplication.
     """
-    lib = xp()
+    d = get_dev(x, y) 
 
     def _fun(x, y):
         from ..array import as_nd
         from . import multiply as mul  # safe recursive use
-
-        out = as_nd(lib.multiply(x, y))
+        
+        _mul = primitive(d, 'multiply')
+        out = as_nd(_mul(x, y))
 
         def grad_fn(g):
             g1 = broadcast_backward(mul(g, y), x.shape)
@@ -173,13 +180,14 @@ def divide(x: Array, y: Array):
     Returns:
         A: Result of elementwise division.
     """
-    lib = xp()
+    d = get_dev(x, y) 
 
     def _fun(x, y):
         from ..array import as_nd, negative
         from . import multiply as mul, power, divide as div
 
-        out = as_nd(lib.divide(x, y))
+        _div = primitive(d, 'divide')
+        out = as_nd(_div(x, y))
 
         def grad_fn(g):
             g1 = broadcast_backward(mul(g, div(as_nd(1.0), y)), x.shape)
@@ -211,14 +219,16 @@ def log(x: Array):
     Autograd:
         d/dx log(x) = 1/x
     """
-    lib = xp()
+    d = get_dev(x) 
 
     def _fun(x):
         from ..array import as_nd
 
         eps = 1e-12
-        inp = lib.maximum(x, eps)
-        out = as_nd(lib.log(inp))  # clamp
+        inp = maximum(x, eps)
+
+        _log = primitive(d, 'log')
+        out = as_nd(_log(inp))  # clamp
 
         def grad_fn(g):
             return (g / (x + eps),)
@@ -233,10 +243,11 @@ def log(x: Array):
 # =====================================================================
 
 def exp(x:Array):
-    lib = xp()
+    d = get_dev(x) 
     def _fun(x):
         from ..array import as_nd
-        out = as_nd(lib.exp(x))
+        _exp = primitive(d, 'exp')
+        out = as_nd(_exp(x))
         def grad_fn(g):
             return (multiply(g, out),)
         
@@ -262,12 +273,14 @@ def reciprocal(x:Array):
 # Sign
 # =====================================================================
 def sign(x:Array):
-    lib = xp()
+    d = get_dev(x) 
     def _fun(x):
         from ..array import as_nd
-        out = as_nd(lib.sign(x))
+        _sign = primitive(d, 'sign')
+        out = as_nd(_sign(x))
+
         def grad_fn(g):
-            return (as_nd(lib.zeros_like(x)),)
+            return (as_nd(zeros_like(x)),)
         
         return out, (as_nd(x),), grad_fn
     return MakeOP(_fun)(x)
@@ -289,16 +302,14 @@ def power(x: Array, y: Array):
     Returns:
         A: Result of ``x ** y``.
     """
-    lib = xp()
+    d = get_dev(x, y) 
 
     def _fun(x, y):
         from ..array import as_nd
         from . import add, subtract, multiply, log, power
 
-        # if y<0:
-        #     x.astype('float32')
-
-        out = as_nd(lib.power(x, y))
+        _pow = primitive(d, 'power')
+        out = as_nd(_pow(x, y))
 
         def grad_fn(g):
             # d/dx = y * x^(y-1)
@@ -316,6 +327,7 @@ def power(x: Array, y: Array):
 # =====================================================================
 # TRANSPOSE
 # =====================================================================
+from .utils import unwrap
 
 def transpose(x: Array, axes=None):
     """
@@ -328,19 +340,23 @@ def transpose(x: Array, axes=None):
     Returns:
         A: Transposed tensor.
     """
-    lib = xp()
+    d = get_dev(x) 
 
     def _fun(x):
         from ..array import as_nd
         from . import transpose
+        argsort = primitive(d, 'argsort')
+        array = primitive(d, 'array')
 
-        out = as_nd(lib.transpose(unwrap(x), axes=axes))
+        _transpose = primitive(d, 'transpose')
+
+        out = as_nd(transpose(unwrap(x), axes=axes))
 
         def grad_fn(g):
             if axes is None:
                 rev_axes = None
             else:
-                rev_axes = tuple(lib.argsort(lib.array(axes)))
+                rev_axes = tuple(argsort(array(axes)))
             return transpose(g, axes=rev_axes),
 
         return out, (as_nd(x),), grad_fn
@@ -370,14 +386,17 @@ def matmul(a: Array, b: Array):
     Returns:
         A: The matrix product.
     """
-    lib = xp()
+    d = get_dev(a, b) 
 
     def _fun(a, b):
         from ..array import as_nd
         from . import matmul
         from .primitive_array_ops import expand_dims
 
-        out = as_nd(lib.matmul(unwrap(a), unwrap(b)))
+        _mm = primitive(d, 'matmul')
+        swapaxes = primitive(d, 'swapaxes')
+
+        out = as_nd(_mm(unwrap(a), unwrap(b)))
 
         def grad_fn(g):
             A, B, G = a, b, g
@@ -388,9 +407,9 @@ def matmul(a: Array, b: Array):
             if A.ndim == 1:              # vector @ matrix
                 A2 = expand_dims(A, 0)  # (1, K)
                 G2 = G if G.ndim > 1 else expand_dims(G, 0)
-                dA = squeeze(matmul(G2, lib.swapaxes(unwrap(B), -1, -2)), 0)
+                dA = squeeze(matmul(G2, swapaxes(unwrap(B), -1, -2)), 0)
             else:
-                dA = G @ lib.swapaxes(unwrap(B), -1, -2)
+                dA = G @ swapaxes(unwrap(B), -1, -2)
 
             # ----------------------------
             # dB
@@ -398,9 +417,9 @@ def matmul(a: Array, b: Array):
             if B.ndim == 1:              # matrix @ vector
                 B2 = expand_dims(B, -1)  # (K, 1)
                 G2 = G if G.ndim > 1 else expand_dims(G, -1)
-                dB = squeeze(matmul(lib.swapaxes(unwrap(A), -1, -2), G2), -1)
+                dB = squeeze(matmul(swapaxes(unwrap(A), -1, -2), G2), -1)
             else:
-                dB = matmul(lib.swapaxes(unwrap(A), -1, -2), G)
+                dB = matmul(swapaxes(unwrap(A), -1, -2), G)
 
             return as_nd(dA), as_nd(dB)
 

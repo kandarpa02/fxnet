@@ -5,6 +5,7 @@ from ..utils import broadcast_backward
 from ...backend.backend import xp
 from .primitive_array_ops import squeeze
 from .primitive_reduct import max
+from typing import Optional
 
 Array = A | int | float
 
@@ -152,5 +153,83 @@ def logical_not(x: A):
             return None  # non-differentiable
 
         return as_nd(out), (as_nd(x),), grad_fn
+
+    return MakeOP(_fun)(x)
+
+
+def logical_and(x: A, y: A):
+    lib = xp()
+
+    def _fun(x, y):
+        out = lib.logical_and(x, y)
+        from ..array import as_nd
+
+        def grad_fn(g):
+            return None, None  # non-differentiable
+
+        return as_nd(out), (as_nd(x), as_nd(y)), grad_fn
+
+    return MakeOP(_fun)(x, y)
+
+
+def logical_or(x: A, y: A):
+    lib = xp()
+
+    def _fun(x, y):
+        out = lib.logical_or(x, y)
+        from ..array import as_nd
+
+        def grad_fn(g):
+            return None, None
+
+        return as_nd(out), (as_nd(x), as_nd(y)), grad_fn
+
+    return MakeOP(_fun)(x, y)
+
+
+def logical_xor(x: A, y: A):
+    lib = xp()
+
+    def _fun(x, y):
+        out = lib.logical_xor(x, y)
+        from ..array import as_nd
+
+        def grad_fn(g):
+            return None, None
+
+        return as_nd(out), (as_nd(x), as_nd(y)), grad_fn
+
+    return MakeOP(_fun)(x, y)
+
+def logical_any(x: A, axis: Optional[int] = None, keepdims: bool = False):
+    lib = xp()
+    
+    def _fun(x):
+        from ..array import as_nd
+
+        buf = x.__backend_buffer__
+        out = lib.any(buf, axis=axis, keepdims=keepdims)
+
+        def grad_fn(g):
+            return None
+
+        return as_nd(out), (x,), grad_fn
+
+    return MakeOP(_fun)(x)
+
+
+def logical_all(x: A, axis: Optional[int] = None, keepdims: bool = False):
+    lib = xp()
+    
+    def _fun(x):
+        from ..array import as_nd
+
+        buf = x.__backend_buffer__ 
+        out = lib.all(buf, axis=axis, keepdims=keepdims)
+
+        def grad_fn(g):
+            return None  # non-differentiable
+
+        return as_nd(out), (x,), grad_fn
 
     return MakeOP(_fun)(x)

@@ -46,7 +46,6 @@ def reshape(x: Array, shape):
     def _fun(x):
         from ..array import as_nd
         from . import reshape
-        # x_nd = as_nd(x)
         out = as_nd(lib.reshape(unwrap(x), shape))
 
         def grad_fn(g):

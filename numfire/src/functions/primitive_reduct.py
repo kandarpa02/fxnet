@@ -11,8 +11,8 @@ Implements sum, mean, max, min, prod with:
 from __future__ import annotations
 from .._typing import Array as A
 from ..base import MakeOP
-from ...backend.backend import xp
-
+from xpy import primitive
+from .xpy_utils import get_dev
 Array = A
 
 
@@ -21,15 +21,18 @@ Array = A
 # ============================================================
 
 def sum(x: Array, axis=None, keepdims=False):
-    lib = xp()
+    d = get_dev(x) 
 
     def _fun(x):
         from ..array import as_nd
+        expand_dims = primitive(d, 'expand_dims')
+        broadcast_to = primitive(d, 'broadcast_to')
 
         x_w = as_nd(x)
-        x_raw = x_w.np
-
-        out_raw = lib.sum(x_raw, axis=axis, keepdims=keepdims)
+        x_raw = x_w.__backend_buffer__
+        
+        _sum = primitive(d, 'sum')
+        out_raw = _sum(x_raw, axis=axis, keepdims=keepdims)
         out = as_nd(out_raw)
 
         def grad_fn(g):
@@ -39,9 +42,9 @@ def sum(x: Array, axis=None, keepdims=False):
             if not keepdims and axis is not None:
                 axes = axis if isinstance(axis, tuple) else (axis,)
                 for ax in sorted(axes):
-                    g_raw = lib.expand_dims(g_raw, ax)
+                    g_raw = expand_dims(g_raw, ax)
 
-            g_raw = lib.broadcast_to(g_raw, x_raw.shape)
+            g_raw = broadcast_to(g_raw, x_raw.shape)
             return as_nd(g_raw),
 
         return out, (x_w,), grad_fn
@@ -54,15 +57,19 @@ def sum(x: Array, axis=None, keepdims=False):
 # ============================================================
 
 def mean(x: Array, axis=None, keepdims=False):
-    lib = xp()
+    d = get_dev(x) 
 
     def _fun(x):
         from ..array import as_nd
+        array = primitive(d, 'array')
+        expand_dims = primitive(d, 'expand_dims')
+        broadcast_to = primitive(d, 'broadcast_to')
 
         x_w = as_nd(x)
-        x_raw = x_w.np
+        x_raw = x_w.__backend_buffer__
 
-        out_raw = lib.mean(x_raw, axis=axis, keepdims=keepdims)
+        _mean = primitive(d, 'mean')
+        out_raw = _mean(x_raw, axis=axis, keepdims=keepdims)
         out = as_nd(out_raw)
 
         # compute N
@@ -71,7 +78,7 @@ def mean(x: Array, axis=None, keepdims=False):
         else:
             axes = axis if isinstance(axis, tuple) else (axis,)
             dims = [x_raw.shape[a] for a in axes]
-            N = int(lib.prod(lib.array(dims)))
+            N = int(prod(array(dims)))
 
         def grad_fn(g):
             g_raw = as_nd(g).np
@@ -79,10 +86,10 @@ def mean(x: Array, axis=None, keepdims=False):
             if not keepdims and axis is not None:
                 axes = axis if isinstance(axis, tuple) else (axis,)
                 for ax in sorted(axes):
-                    g_raw = lib.expand_dims(g_raw, ax)
+                    g_raw = expand_dims(g_raw, ax)
 
             g_raw = g_raw / N
-            g_raw = lib.broadcast_to(g_raw, x_raw.shape)
+            g_raw = broadcast_to(g_raw, x_raw.shape)
             return as_nd(g_raw),
 
         return out, (x_w,), grad_fn
@@ -95,15 +102,19 @@ def mean(x: Array, axis=None, keepdims=False):
 # ============================================================
 
 def max(x: Array, axis=None, keepdims=False):
-    lib = xp()
+    d = get_dev(x)
 
     def _fun(x):
+        array = primitive(d, 'array')
         from ..array import as_nd
+        expand_dims = primitive(d, 'expand_dims')
+        broadcast_to = primitive(d, 'broadcast_to')
 
         x_w = as_nd(x)
-        x_raw = x_w.np
+        x_raw = x_w.__backend_buffer__
 
-        out_raw = lib.max(x_raw, axis=axis, keepdims=keepdims)
+        _max = primitive(d, 'max')
+        out_raw = _max(x_raw, axis=axis, keepdims=keepdims)
         out = as_nd(out_raw)
 
         def grad_fn(g):
@@ -114,12 +125,12 @@ def max(x: Array, axis=None, keepdims=False):
             if not keepdims and axis is not None:
                 axes = axis if isinstance(axis, tuple) else (axis,)
                 for ax in sorted(axes):
-                    out_b = lib.expand_dims(out_b, ax)
-            out_b = lib.broadcast_to(out_b, x_raw.shape)
+                    out_b = expand_dims(out_b, ax)
+            out_b = broadcast_to(out_b, x_raw.shape)
 
             mask = (x_raw == out_b)
-            denom = lib.sum(mask, axis=axis, keepdims=True)
-            denom = lib.broadcast_to(denom, x_raw.shape)
+            denom = sum(mask, axis=axis, keepdims=True)
+            denom = broadcast_to(denom, x_raw.shape)
 
             grad_raw = mask * (g_raw / denom)
             return as_nd(grad_raw),
@@ -134,15 +145,19 @@ def max(x: Array, axis=None, keepdims=False):
 # ============================================================
 
 def min(x: Array, axis=None, keepdims=False):
-    lib = xp()
+    d = get_dev(x)
 
     def _fun(x):
+        array = primitive(d, 'array')
         from ..array import as_nd
+        expand_dims = primitive(d, 'expand_dims')
+        broadcast_to = primitive(d, 'broadcast_to')
 
         x_w = as_nd(x)
-        x_raw = x_w.np
+        x_raw = x_w.__backend_buffer__
 
-        out_raw = lib.min(x_raw, axis=axis, keepdims=keepdims)
+        _min = primitive(d, 'min')
+        out_raw = _min(x_raw, axis=axis, keepdims=keepdims)
         out = as_nd(out_raw)
 
         def grad_fn(g):
@@ -152,12 +167,12 @@ def min(x: Array, axis=None, keepdims=False):
             if not keepdims and axis is not None:
                 axes = axis if isinstance(axis, tuple) else (axis,)
                 for ax in sorted(axes):
-                    out_b = lib.expand_dims(out_b, ax)
-            out_b = lib.broadcast_to(out_b, x_raw.shape)
+                    out_b = expand_dims(out_b, ax)
+            out_b = broadcast_to(out_b, x_raw.shape)
 
             mask = (x_raw == out_b)
-            denom = lib.sum(mask, axis=axis, keepdims=True)
-            denom = lib.broadcast_to(denom, x_raw.shape)
+            denom = sum(mask, axis=axis, keepdims=True)
+            denom = broadcast_to(denom, x_raw.shape)
 
             grad_raw = mask * (g_raw / denom)
             return as_nd(grad_raw),
@@ -172,15 +187,19 @@ def min(x: Array, axis=None, keepdims=False):
 # ============================================================
 
 def prod(x: Array, axis=None, keepdims=False):
-    lib = xp()
+    d = get_dev(x)
 
     def _fun(x):
         from ..array import as_nd
+        expand_dims = primitive(d, 'expand_dims')
+        broadcast_to = primitive(d, 'broadcast_to')
+        wh = primitive(d, 'where')
 
         x_w = as_nd(x)
         x_raw = x_w.np
 
-        out_raw = lib.prod(x_raw, axis=axis, keepdims=keepdims)
+        _prod = primitive(d, 'prod')
+        out_raw = _prod(x_raw, axis=axis, keepdims=keepdims)
         out = as_nd(out_raw)
 
         def grad_fn(g):
@@ -190,12 +209,12 @@ def prod(x: Array, axis=None, keepdims=False):
             if not keepdims and axis is not None:
                 axes = axis if isinstance(axis, tuple) else (axis,)
                 for ax in sorted(axes):
-                    out_b = lib.expand_dims(out_b, ax)
-            out_b = lib.broadcast_to(out_b, x_raw.shape)
+                    out_b = expand_dims(out_b, ax)
+            out_b = broadcast_to(out_b, x_raw.shape)
 
             # Safe: out / x
             eps_mask = (x_raw != 0)
-            grad_raw = lib.where(eps_mask, out_b / x_raw, 0.0)
+            grad_raw = wh(eps_mask, out_b / x_raw, 0.0)
             grad_raw = grad_raw * g_raw
 
             return as_nd(grad_raw),

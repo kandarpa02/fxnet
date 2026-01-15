@@ -1,7 +1,15 @@
 from ._typing import Array as A
-from ..backend.backend import xp    # unified backend (numpy OR cupy)
+from ..backend.backend import xp   
 from .functions import *
-from .functions.comparison import equal, not_equal, greater, greater_equal, less, less_equal, logical_not
+from .functions.comparison import (
+    equal, not_equal, 
+    greater, greater_equal, 
+    less, less_equal, 
+    logical_not, logical_and, 
+    logical_or, logical_xor, 
+    logical_all, logical_any
+    )
+
 from typing import Optional
 from typing import Union, NamedTuple
 from .DType import DType
@@ -145,8 +153,8 @@ class NDarray(A):
     def __int__(self):
         return int(self.__backend_buffer__)
     
-    # def __setitem__(self, k, v):
-    #     self.__backend_buffer__[k] = v
+    def __setitem__(self, k, v):
+        self.__backend_buffer__[k] = v
 
     def __getitem__(self, idx):
         return NDarray(self.__backend_buffer__[idx].copy())
@@ -190,8 +198,23 @@ class NDarray(A):
     def __matmul__(self, other):
         return matmul(self, other)
     
+    def __and__(self, other):
+        return logical_and(self, other)
+
+    def __or__(self, other):
+        return logical_or(self, other)
+
+    def __xor__(self, other):
+        return logical_xor(self, other)
+
     def __invert__(self):
         return logical_not(self)
+    
+    def any(self, axis=None, keepdims=False):
+        return logical_any(self, axis=axis, keepdims=keepdims)
+
+    def all(self, axis=None, keepdims=False):
+        return logical_all(self, axis=axis, keepdims=keepdims)
 
     @property
     def T(self):
