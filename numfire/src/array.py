@@ -32,24 +32,33 @@ def as_ndarray(x):
         cp = None
         has_cupy = False
 
-    # Already a backend ndarray
+    # ---- Backend ndarrays (KEEP DEVICE) ----
     if has_cupy and isinstance(x, cp.ndarray):
         return x
 
     if isinstance(x, np.ndarray):
         return x
 
-    # Our NDarray → unwrap ONLY
+    # ---- Our NDarray (unwrap only) ----
     if isinstance(x, NDarray):
         return x.__backend_buffer__
 
-    # Scalars / lists on BEST device
+    # ---- NumPy scalar ----
+    if isinstance(x, np.generic):
+        return np.asarray(x)
+
+    # ---- CuPy scalar ----
+    if has_cupy and isinstance(x, cp.generic):
+        return cp.asarray(x)
+
+    # ---- Python scalars / lists ----
     if isinstance(x, (int, float, bool, list, tuple)):
         if has_cupy:
             return cp.asarray(x)
         return np.asarray(x)
 
     raise TypeError(f"{type(x)} not supported as input")
+
 
 def as_nd(x):
     return NDarray(x)
