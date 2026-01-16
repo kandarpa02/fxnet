@@ -6,7 +6,7 @@ from ...nn.parameters import Variable
 from ...nn.base import Cell
 from typing import Dict, Any
 from ..tree_util import flatten_pytree, register_tree_node, unflatten_pytree
-
+from ...src.functions.xpy_utils import get_dev, module
 
 # ================================================================
 # Helper functions
@@ -34,8 +34,13 @@ def _id(x):
     return id(x.__backend_buffer__) if is_leaf(x) else id(x)
 
 
-def _zero_like(x):
-    return b.xp().zeros_like(_extract_np(x))
+def _zeros_like(x):
+    d = get_dev(x)
+    return module(d).zeros_like(_extract_np(x))
+
+def _ones_like(x):
+    d = get_dev(x)
+    return module(d).ones_like(_extract_np(x))
 
 def norm_tuple(tpl):
     store = []
@@ -118,7 +123,7 @@ def _backward(fun, original_args, diff_leaves):
     # Gradient storage
     # ------------------------------------------------------------
     grads = {
-        _id(out): b.xp().ones_like(_extract_np(out))
+        _id(out): _ones_like(out)
     }
 
     # ------------------------------------------------------------
@@ -219,7 +224,7 @@ def grad(fun):
         for leaf in leaves:
             if is_leaf(leaf):
                 gid = _id(leaf)
-                flat_grads.append(gdict.get(gid, b.xp().zeros_like(leaf.__backend_buffer__)))
+                flat_grads.append(gdict.get(gid, _zeros_like(leaf)))
             else:
                 flat_grads.append(None)
 
@@ -282,7 +287,7 @@ def value_and_grad(fun: Callable, argnum: Union[int, tuple, list, None] = None) 
         for leaf in leaves:
             if is_leaf(leaf):
                 gid = _id(leaf)
-                flat_grads.append(gdict.get(gid, b.xp().zeros_like(leaf.__backend_buffer__)))
+                flat_grads.append(gdict.get(gid, _zeros_like(leaf)))
             else:
                 flat_grads.append(None)
 
