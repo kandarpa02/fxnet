@@ -22,39 +22,32 @@ _Dtype = Union[DType, str, None]
 
 def as_ndarray(x):
     """
-    Convert input to backend array (numpy OR cupy) while respecting NDarray.
+    Normalize input to a backend ndarray WITHOUT changing device.
     """
-    d = get_dev(x)
-    nd = module(d).ndarray
-    asarr = module(d).asarray
-    isscal = module(d).isscalar
-    arr = module(d).array
-    # If it's already a backend ndarray
-    if isinstance(x, nd):
+    import numpy as np
+    try:
+        import cupy as cp
+        has_cupy = True
+    except ImportError:
+        cp = None
+        has_cupy = False
+
+    # Already a backend ndarray
+    if has_cupy and isinstance(x, cp.ndarray):
         return x
 
-    # Python scalars
-    if isinstance(x, (int, float, bool)):
-        return asarr(x)
+    if isinstance(x, np.ndarray):
+        return x
 
-    # Lists or tuples
-    if isinstance(x, (list, tuple)):
-        return asarr(x)
-
-    # If user passed a raw numpy array → convert to backend array
-    try:
-        import numpy as _np
-        if isinstance(x, _np.ndarray):
-            return asarr(x)
-    except Exception:
-        pass
-
-    # Our NDarray
+    # Our NDarray → unwrap ONLY
     if isinstance(x, NDarray):
-        return asarr(x.__backend_buffer__)
-    
-    if isscal(x):            
-        return arr(x)
+        return x.__backend_buffer__
+
+    # Scalars / lists on BEST device
+    if isinstance(x, (int, float, bool, list, tuple)):
+        if has_cupy:
+            return cp.asarray(x)
+        return np.asarray(x)
 
     raise TypeError(f"{type(x)} not supported as input")
 
