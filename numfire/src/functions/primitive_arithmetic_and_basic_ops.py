@@ -36,37 +36,6 @@ from .utils import unwrap
 # ADD
 # =====================================================================
 
-# def add(x: Array, y: Array):
-#     """
-#     Elementwise addition: ``x + y``.
-
-#     Args:
-#         x (Array): First operand.
-#         y (Array): Second operand.
-
-#     Returns:
-#         A: Result of elementwise addition.
-
-#     Autograd:
-#         dx = broadcast_backward(g, x.shape)
-#         dy = broadcast_backward(g, y.shape)
-#     """
-#     d = get_dev(x, y) 
-
-#     def _fun(x, y):
-#         from ..array import as_nd
-#         _add = primitive(d, 'add')
-#         out = as_nd(_add(x, y))
-
-#         def grad_fn(g):
-#             g1 = broadcast_backward(g, x.shape)
-#             g2 = broadcast_backward(g, y.shape)
-#             return g1, g2
-
-#         return out, (as_nd(x), as_nd(y)), grad_fn
-
-#     return MakeOP(_fun)(x, y)
-
 def add(x: Array, y: Array):
     """
     Elementwise addition: ``x + y``.
@@ -82,17 +51,12 @@ def add(x: Array, y: Array):
         dx = broadcast_backward(g, x.shape)
         dy = broadcast_backward(g, y.shape)
     """
-    d = get_dev(x, y)
+    d = get_dev(x, y) 
 
     def _fun(x, y):
         from ..array import as_nd
-
         _add = primitive(d, 'add')
-
-        xb = getattr(x, "__backend_buffer__", x)
-        yb = getattr(y, "__backend_buffer__", y)
-
-        out = as_nd(_add(xb, yb))
+        out = as_nd(_add(x, y))
 
         def grad_fn(g):
             g1 = broadcast_backward(g, x.shape)
@@ -102,7 +66,6 @@ def add(x: Array, y: Array):
         return out, (as_nd(x), as_nd(y)), grad_fn
 
     return MakeOP(_fun)(x, y)
-
 
 # =====================================================================
 # SUBTRACT
@@ -151,7 +114,7 @@ def negative(x: Array):
     Returns:
         A: The negated tensor.
     """
-    d = get_dev(x, y) 
+    d = get_dev(x) 
 
     def _fun(x):
         from ..array import as_nd, negative as neg
