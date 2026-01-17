@@ -18,4 +18,4 @@ from . import optimizers
 
 from .src.ndarray.utils import astype
 # from .src.eager_fusion import fuse
-from .src.functions.xpy_utils import device_shift
+from .src.functions.xpy_utils import device_shift, device

@@ -1,5 +1,6 @@
 from ...backend.backend import xp
 from xpy.utils import shift_device_
+from .._typing import Array
 
 def get_dev(*arrays):
     import numpy as np
@@ -45,8 +46,12 @@ def module(type):
 
     raise TypeError(f"Unknown backend type: {type}")
 
+def device(x:Array):
+    """
+    utility function to get the backend info of the given input
+    """
+    return get_dev(x)
 
-from .._typing import Array
 
 def device_shift(x: Array, device: str):
     """Shift x to preferred device: 'cpu' or 'cuda'."""

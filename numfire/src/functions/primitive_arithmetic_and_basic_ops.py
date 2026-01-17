@@ -26,7 +26,7 @@ from .primitive_reduct import max
 from .utils import maximum
 from ..ndarray.array_creation import zeros_like
 from xpy import primitive
-from .xpy_utils import get_dev
+from .xpy_utils import get_dev, device_shift
 
 # Allow scalars as valid inputs
 Array = A | int | float
@@ -343,13 +343,16 @@ def power(x: Array, y: Array):
     def _fun(x, y):
         from ..array import as_nd
         from . import add, subtract, multiply, log, power
+        from ..ndarray.array_creation import ones_like
 
         _pow = primitive(d, 'power')
         out = as_nd(_pow(x, y))
 
         def grad_fn(g):
             # d/dx = y * x^(y-1)
-            dx = multiply(g, multiply(y, power(x, subtract(y, as_nd(1)))))
+            _one = ones_like(y)
+            _one = device_shift(_one, get_dev(_one))
+            dx = multiply(g, multiply(y, power(x, subtract(y, _one))))
             # d/dy = (x^y) * log(x)
             dy = multiply(g, multiply(out, log(x)))
 
