@@ -12,7 +12,7 @@ from __future__ import annotations
 from .._typing import Array as A
 from ..base import MakeOP
 from xpy import primitive
-from .xpy_utils import get_dev
+from .xpy_utils import get_dev, module
 Array = A
 
 
@@ -61,7 +61,7 @@ def mean(x: Array, axis=None, keepdims=False):
 
     def _fun(x):
         from ..array import as_nd
-        array = primitive(d, 'array')
+        array = module(d).array
         expand_dims = primitive(d, 'expand_dims')
         broadcast_to = primitive(d, 'broadcast_to')
 

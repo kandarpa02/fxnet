@@ -2,11 +2,11 @@ from typing import Generic, TypeVar
 from ..src.array import NDarray
 
 def as_var(data):
-    return data if isinstance(data, Variable) else Variable(data)
+    return getattr(data, "__backend_buffer__", data)
 
 def _check(data):
     if isinstance(data, Variable|NDarray):
-        return data.np
+        return data.__backend_buffer__
     else:
         return data
 
@@ -38,8 +38,9 @@ class Variable(NDarray):
     
     def assign(self, value):
         value = _check(value)
-        self.__backend_buffer__[...] = value
-        return self
+        # self.__backend_buffer__.copy()[...] = value
+        out = Variable(getattr(value, '__backend_buffer__', value), name=self.name)
+        return out
 
     def _repr(self):
         name, shape_str, dtype_str, trainable_str = self.name, self.shape, self.dtype, self.trainable

@@ -26,7 +26,7 @@ from .primitive_reduct import max
 from .utils import maximum
 from ..ndarray.array_creation import zeros_like
 from xpy import primitive
-from .xpy_utils import get_dev, device_shift
+from .xpy_utils import get_dev, device_shift, module
 
 # Allow scalars as valid inputs
 Array = A | int | float
@@ -395,8 +395,8 @@ def matmul(a: Array, b: Array):
         from . import matmul
         from .primitive_array_ops import expand_dims
 
-        _mm = primitive(d, 'matmul')
-        swapaxes = primitive(d, 'swapaxes')
+        _mm = module(d).matmul
+        swapaxes = module(d).swapaxes
 
         out = as_nd(_mm(unwrap(a), unwrap(b)))
 
