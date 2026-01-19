@@ -191,13 +191,16 @@ class NDarray(A):
     # Binary ops (forward)
     # -------------------------
     def __add__(self, other):
-        return add(self, as_nd(other).astype(self.dtype))
+        # return add(self, as_nd(other).astype(self.dtype))
+        return add(self, as_nd(other))
 
     def __sub__(self, other):
-        return subtract(self, as_nd(other).astype(self.dtype))
+        # return subtract(self, as_nd(other).astype(self.dtype))
+        return subtract(self, as_nd(other))
 
     def __mul__(self, other):
-        return multiply(self, as_nd(other).astype(self.dtype))
+        # return multiply(self, as_nd(other).astype(self.dtype))
+        return multiply(self, as_nd(other))
 
     def __truediv__(self, other):
         return divide(self, as_nd(other).astype(self.dtype))
