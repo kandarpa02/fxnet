@@ -68,8 +68,9 @@ class RandomNormal(Initializer):
 
   def __call__(self, shape: Sequence[int], dtype:DType|str, key:Any=None) -> Array:
     # _key = rng_type(key)
-    m = astype(self.mean, dtype)
-    s = astype(self.stddev, dtype)
+
+    m = np.astype(self.mean, normalize_dtype(dtype))
+    s = np.astype(self.stddev, normalize_dtype(dtype))
     return array(m + s * np.random.randn(*shape), dtype=dtype)
 
 def truncated_normal(shape, mean=0.0, std=1.0, low=-2.0, high=2.0):
@@ -110,10 +111,9 @@ class TruncatedNormal(Initializer):
     self.upper = upper
 
   def __call__(self, shape: Sequence[int], dtype: DType|str) -> Array:
-    # _key = rng_type(key)
-    # real_dtype = np.finfo(dtype).dtype
-    m = astype(self.mean, dtype)
-    s = astype(self.stddev, dtype)
+    m = np.astype(self.mean, normalize_dtype(dtype))
+    s = np.astype(self.stddev, normalize_dtype(dtype))
+
     is_complex = np.issubdtype(normalize_dtype(dtype), np.complexfloating)
     if is_complex:
       shape = [2, *shape]
