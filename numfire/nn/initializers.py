@@ -69,8 +69,9 @@ class RandomNormal(Initializer):
   def __call__(self, shape: Sequence[int], dtype:DType|str, key:Any=None) -> Array:
     # _key = rng_type(key)
 
-    m = np.astype(self.mean, normalize_dtype(dtype))
-    s = np.astype(self.stddev, normalize_dtype(dtype))
+    m = np.asarray(self.mean, dtype=normalize_dtype(dtype))
+    s = np.asarray(self.stddev, dtype=normalize_dtype(dtype))
+
     return array(m + s * np.random.randn(*shape), dtype=dtype)
 
 def truncated_normal(shape, mean=0.0, std=1.0, low=-2.0, high=2.0):
@@ -111,8 +112,9 @@ class TruncatedNormal(Initializer):
     self.upper = upper
 
   def __call__(self, shape: Sequence[int], dtype: DType|str) -> Array:
-    m = np.astype(self.mean, normalize_dtype(dtype))
-    s = np.astype(self.stddev, normalize_dtype(dtype))
+    m = np.asarray(self.mean, dtype=normalize_dtype(dtype))
+    s = np.asarray(self.stddev, dtype=normalize_dtype(dtype))
+
 
     is_complex = np.issubdtype(normalize_dtype(dtype), np.complexfloating)
     if is_complex:
@@ -289,7 +291,7 @@ class Orthogonal(Initializer):
       q_mat = q_mat.T
     q_mat = np.reshape(q_mat, (n_rows,) + tuple(np.delete(shape, self.axis)))
     q_mat = np.moveaxis(q_mat, 0, self.axis)
-    return astype(self.scale * q_mat, dtype)
+    return array(self.scale * q_mat, dtype)
 
 
 class Identity(Initializer):
@@ -314,5 +316,5 @@ class Identity(Initializer):
     eye = np.eye(shape[-2], shape[-1], dtype=normalize_dtype(dtype))
     if eye.shape != shape:
       eye = np.broadcast_to(eye, shape)
-    gain = astype(self.gain, dtype)
-    return gain * eye
+    gain = np.asarray(self.gain, normalize_dtype(dtype))
+    return array(gain * eye)
