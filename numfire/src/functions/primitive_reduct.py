@@ -25,8 +25,8 @@ def sum(x: Array, axis=None, keepdims=False):
 
     def _fun(x):
         from ..array import as_nd
-        expand_dims = primitive(d, 'expand_dims')
-        broadcast_to = primitive(d, 'broadcast_to')
+        expand_dims = module(d).expand_dims
+        broadcast_to = module(d).broadcast_to
 
         x_w = as_nd(x)
         x_raw = x_w.__backend_buffer__
@@ -62,8 +62,8 @@ def mean(x: Array, axis=None, keepdims=False, dtype=None):
     def _fun(x):
         from ..array import as_nd
         array = module(d).array
-        expand_dims = primitive(d, 'expand_dims')
-        broadcast_to = primitive(d, 'broadcast_to')
+        expand_dims = module(d).expand_dims
+        broadcast_to = module(d).broadcast_to
 
         x_w = as_nd(x)
         _dtype=x_w.dtype if dtype is None else dtype
@@ -106,10 +106,10 @@ def max(x: Array, axis=None, keepdims=False):
     d = get_dev(x)
 
     def _fun(x):
-        array = primitive(d, 'array')
+        array = module(d).array
         from ..array import as_nd
-        expand_dims = primitive(d, 'expand_dims')
-        broadcast_to = primitive(d, 'broadcast_to')
+        expand_dims = module(d).expand_dims
+        broadcast_to = module(d).broadcast_to
 
         x_w = as_nd(x)
         x_raw = x_w.__backend_buffer__
@@ -149,11 +149,11 @@ def min(x: Array, axis=None, keepdims=False):
     d = get_dev(x)
 
     def _fun(x):
-        array = primitive(d, 'array')
+        array = module(d).array
         from ..array import as_nd
-        expand_dims = primitive(d, 'expand_dims')
-        broadcast_to = primitive(d, 'broadcast_to')
-
+        expand_dims = module(d).expand_dims
+        broadcast_to = module(d).broadcast_to
+        
         x_w = as_nd(x)
         x_raw = x_w.__backend_buffer__
 
@@ -192,9 +192,9 @@ def prod(x: Array, axis=None, keepdims=False):
 
     def _fun(x):
         from ..array import as_nd
-        expand_dims = primitive(d, 'expand_dims')
-        broadcast_to = primitive(d, 'broadcast_to')
-        wh = primitive(d, 'where')
+        expand_dims = module(d).expand_dims
+        broadcast_to = module(d).broadcast_to
+        wh = module(d).where
 
         x_w = as_nd(x)
         x_raw = x_w.np
