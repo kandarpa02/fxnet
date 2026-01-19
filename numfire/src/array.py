@@ -12,7 +12,7 @@ from .functions.comparison import (
 
 from typing import Optional
 from typing import Union, NamedTuple
-from .DType import DType
+from .DType import DType, normalize_dtype
 from ..src.functions.xpy_utils import get_dev, module
 # -------------------------
 # Backend-aware array casting
@@ -124,11 +124,6 @@ class NDarray(A):
 
     def __len__(self):
         return len(self.__backend_buffer__)
-
-    def astype(self, dtype:_Dtype):
-        from ..src.ndarray.utils import astype
-        """Return a new NDarray with the same values, different dtype."""
-        return astype(self, dtype)
     
     def __hash__(self):
         return id(self)   # identity-based hashing
@@ -152,6 +147,16 @@ class NDarray(A):
 
     __array_priority__ = 200 
 
+    def __mutate_state__(self, **kwargs):
+        for k, v in kwargs.items():
+            if k in self.__dict__.keys():
+                setattr(self, k, v)
+
+    def astype(self, dtype:_Dtype):
+        _data = self.__backend_buffer__.astype(normalize_dtype(dtype))
+        self.__mutate_state__(__backend_buffer__=_data)
+        return self
+    
     def __float__(self):
         return float(self.__backend_buffer__)
 
@@ -186,19 +191,19 @@ class NDarray(A):
     # Binary ops (forward)
     # -------------------------
     def __add__(self, other):
-        return add(self, as_nd(other))
+        return add(self, as_nd(other).astype(self.dtype))
 
     def __sub__(self, other):
-        return subtract(self, as_nd(other))
+        return subtract(self, as_nd(other).astype(self.dtype))
 
     def __mul__(self, other):
-        return multiply(self, as_nd(other))
+        return multiply(self, as_nd(other).astype(self.dtype))
 
     def __truediv__(self, other):
-        return divide(self, as_nd(other))
+        return divide(self, as_nd(other).astype(self.dtype))
 
     def __pow__(self, other):
-        return power(self, as_nd(other))
+        return power(self, as_nd(other).astype(self.dtype))
     
     def __matmul__(self, other):
         return matmul(self, other)

@@ -1,6 +1,6 @@
 from typing import Generic, TypeVar
 from ..src.array import NDarray
-
+from ..src.DType import DType, normalize_dtype
 def as_var(data):
     return getattr(data, "__backend_buffer__", data)
 
@@ -11,8 +11,8 @@ def _check(data):
         return data
 
 class Variable(NDarray):
-    def __init__(self, data, dtype=None, name: str|None = None):
-        super().__init__(as_var(data), dtype)
+    def __init__(self, data, dtype:DType|None=None, name: str|None = None):
+        super().__init__(as_var(data), normalize_dtype(dtype))
         self.train = True
         self.name = name if name is not None else 'Variable'
 

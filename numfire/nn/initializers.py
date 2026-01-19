@@ -2,22 +2,16 @@
 
 from collections.abc import Sequence
 from typing import Callable, Any, Protocol
-# import jax
-# import jax.numpy as np
 import numpy as np
 from ..src.ndarray.base import array
 from ..src.ndarray.utils import astype
 from ..src._typing import Array
 from ..src.DType import DType, normalize_dtype
+from ..src.functions.xpy_utils import get_dev, device_shift
+from ..backend.backend import xp
 
 class Initializer(Protocol):
     def __call__(self, *args: Any, **kwds: Any) -> Any: ...
-
-# def rng_type(rng):
-#   if isinstance(rng, RNG):
-#     return rng()
-#   else:
-#     raise ValueError(f'pass a RNG instance, found {type(rng)}')
 
 def _compute_fans(shape, fan_in_axes=None):
   """Computes the number of input and output units for a weight shape."""

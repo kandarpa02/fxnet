@@ -189,7 +189,8 @@ def divide(x: Array, y: Array):
         out = as_nd(_div(x, y))
 
         def grad_fn(g):
-            g1 = broadcast_backward(mul(g, div(as_nd(1.0), y)), x.shape)
+            from ..ndarray.array_creation import ones_like
+            g1 = broadcast_backward(mul(g, div(ones_like(y), y)), x.shape)
             g2 = broadcast_backward(
                 negative(mul(g, mul(x, power(y, as_nd(-2))))),
                 y.shape,

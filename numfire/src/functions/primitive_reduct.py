@@ -56,7 +56,7 @@ def sum(x: Array, axis=None, keepdims=False):
 # MEAN
 # ============================================================
 
-def mean(x: Array, axis=None, keepdims=False):
+def mean(x: Array, axis=None, keepdims=False, dtype=None):
     d = get_dev(x) 
 
     def _fun(x):
@@ -66,11 +66,12 @@ def mean(x: Array, axis=None, keepdims=False):
         broadcast_to = primitive(d, 'broadcast_to')
 
         x_w = as_nd(x)
+        _dtype=x_w.dtype if dtype is None else dtype
         x_raw = x_w.__backend_buffer__
 
         _mean = primitive(d, 'mean')
         out_raw = _mean(x_raw, axis=axis, keepdims=keepdims)
-        out = as_nd(out_raw)
+        out = as_nd(out_raw).astype(_dtype)
 
         # compute N
         if axis is None:

@@ -122,6 +122,9 @@ def _backward(fun, original_args, diff_leaves):
     # ------------------------------------------------------------
     # Gradient storage
     # ------------------------------------------------------------
+    print(out.dtype)
+    seed = _ones_like(out)
+    print(seed.dtype)
     grads = {
         _id(out): _ones_like(out)
     }
