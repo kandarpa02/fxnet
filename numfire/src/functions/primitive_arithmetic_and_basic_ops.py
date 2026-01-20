@@ -219,7 +219,7 @@ def log(x: Array):
     Autograd:
         d/dx log(x) = 1/x
     """
-    d = get_dev(x) 
+    d = get_dev(x)
 
     def _fun(x):
         from ..array import as_nd
@@ -231,12 +231,12 @@ def log(x: Array):
         out = as_nd(_log(inp))
 
         def grad_fn(g):
-            return (g / (x + eps),)
+            return (g / inp,)
 
-        return out, (as_nd(x),), grad_fn
-
+        return out, (inp,), grad_fn
 
     return MakeOP(_fun)(x)
+
 
 # =====================================================================
 # EXP

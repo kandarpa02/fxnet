@@ -36,7 +36,7 @@ def sum(x: Array, axis=None, keepdims=False):
         out = as_nd(out_raw)
 
         def grad_fn(g):
-            g_raw = as_nd(g).np
+            g_raw = getattr(g, '__backend_buffer__', g)
 
             # Expand reduced dims
             if not keepdims and axis is not None:
@@ -82,7 +82,7 @@ def mean(x: Array, axis=None, keepdims=False, dtype=None):
             N = int(prod(array(dims)))
 
         def grad_fn(g):
-            g_raw = as_nd(g).np
+            g_raw = getattr(g, '__backend_buffer__', g)
 
             if not keepdims and axis is not None:
                 axes = axis if isinstance(axis, tuple) else (axis,)
@@ -119,7 +119,7 @@ def max(x: Array, axis=None, keepdims=False):
         out = as_nd(out_raw)
 
         def grad_fn(g):
-            g_raw = as_nd(g).np
+            g_raw = getattr(g, '__backend_buffer__', g)
 
             # Expand out_raw to x_raw shape
             out_b = out_raw
@@ -163,7 +163,7 @@ def min(x: Array, axis=None, keepdims=False):
         out = as_nd(out_raw)
 
         def grad_fn(g):
-            g_raw = as_nd(g).np
+            g_raw = getattr(g, '__backend_buffer__', g)
 
             out_b = out_raw
             if not keepdims and axis is not None:
