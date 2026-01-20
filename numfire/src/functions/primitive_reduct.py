@@ -131,7 +131,8 @@ def max(x: Array, axis=None, keepdims=False):
 
             mask = (x_raw == out_b)
             denom = sum(mask, axis=axis, keepdims=True)
-            denom = broadcast_to(denom, x_raw.shape)
+            _denom_buff = getattr(denom, '__backend_buffer__', denom)
+            denom = broadcast_to(_denom_buff, x_raw.shape)
 
             grad_raw = mask * (g_raw / denom)
             return as_nd(grad_raw),
@@ -173,7 +174,8 @@ def min(x: Array, axis=None, keepdims=False):
 
             mask = (x_raw == out_b)
             denom = sum(mask, axis=axis, keepdims=True)
-            denom = broadcast_to(denom, x_raw.shape)
+            _denom_buff = getattr(denom, '__backend_buffer__', denom)
+            denom = broadcast_to(_denom_buff, x_raw.shape)
 
             grad_raw = mask * (g_raw / denom)
             return as_nd(grad_raw),
