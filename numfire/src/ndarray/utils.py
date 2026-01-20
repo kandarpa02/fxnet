@@ -13,7 +13,8 @@ def astype(x:Any, dtype:Union[DType, str, None]=None):
     def fun(x):
         _x = map(lambda x: NDarray(x, _dt), x)
         def grad_f(g):
-            return g,
+            # return g,
+            return map(lambda x:x, g)
     
         return _x, grad_f
     return MakeOP(fun)(x)
