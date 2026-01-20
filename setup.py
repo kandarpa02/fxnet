@@ -17,21 +17,25 @@ setup(
         "numpy>=1.26,<2.3",  # safe for CuPy
         "cupy-cuda12x>=13.6.0,<14.0.0",
         "xpy @ git+https://github.com/kandarpa02/xpy.git@main",
+        "coolname"
     ],
 
     extras_require={
         "cpu": [
             "numpy>=1.26,<2.4",
+            "coolname"
         ],
 
         "cuda12": [
             "cupy-cuda12x>=13.6.0,<14.0.0",
             "numpy<2.3",
+            "coolname"
         ],
 
         "cuda11": [
             "cupy-cuda11x>=12.3.0,<13.0.0",
             "numpy<2.3",
+            "coolname"
         ],
     },
 

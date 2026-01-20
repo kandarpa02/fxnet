@@ -31,8 +31,8 @@ def _extract_np(x):
 
 
 def _id(x):
-    return id(x.__backend_buffer__) if is_leaf(x) else id(x)
-
+    return id(x.__backend_buffer__) if is_leaf(x) else id(x) #previous, works
+    # return x.id if is_leaf(x) else id(x) #new, bug
 
 def _zeros_like(x):
     d = get_dev(x)
@@ -156,8 +156,8 @@ def _backward(fun, original_args, diff_leaves):
         node.parents = None
         node.grad_fn = None
         node.out = None
-
-    # print(tape_records)
+    # print('arg_ids', list(a.id for a in original_args))
+    # print(grads)
 
     tape_records.clear()
 

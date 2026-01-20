@@ -14,9 +14,29 @@ from typing import Optional
 from typing import Union, NamedTuple
 from .DType import DType, normalize_dtype
 from ..src.functions.xpy_utils import get_dev, module
+
 # -------------------------
 # Backend-aware array casting
 # -------------------------
+
+import string
+import random
+
+NAME_COUNTER = 0
+
+ASCII = string.ascii_letters
+DIGITS = string.digits
+EXTRAS = "@#%$?"
+POOL = ASCII + DIGITS + EXTRAS
+
+def name(length=20):
+    global NAME_COUNTER
+
+    rng = random.Random(NAME_COUNTER)
+    out = ''.join(rng.choice(POOL) for _ in range(length))
+
+    NAME_COUNTER += 1
+    return out
 
 _Dtype = Union[DType, str, None]
 
@@ -91,9 +111,10 @@ class NDarray(A):
         arr = as_ndarray(data)
         self.__backend_buffer__ = arr.astype(dtype) if dtype else arr
         self.train = True
+        self.id = name()
         
     __is_leaf__ = True
-    __module__ = "mathino"
+    __module__ = "numfire"
     __qualname__ = "NDarray"
 
     @property
@@ -126,7 +147,7 @@ class NDarray(A):
         return len(self.__backend_buffer__)
     
     def __hash__(self):
-        return id(self)   # identity-based hashing
+        return self.id   # identity-based hashing
 
     # -------------------------
     # Display helpers
@@ -150,12 +171,21 @@ class NDarray(A):
     def __mutate_state__(self, **kwargs):
         for k, v in kwargs.items():
             if k in self.__dict__.keys():
+
                 setattr(self, k, v)
 
+    def __without_mutation__(self, **kwargs):
+        pass
+
+    def copy(self):
+        x = self.__backend_buffer__.copy()
+        copied = NDarray(x)
+        copied.__mutate_state__(id=self.id)
+        return copied
+
     def astype(self, dtype:_Dtype):
-        _data = self.__backend_buffer__.astype(normalize_dtype(dtype))
-        self.__mutate_state__(__backend_buffer__=_data)
-        return self
+        from ..src.ndarray.utils import astype
+        return astype(self, dtype=dtype)
     
     def __float__(self):
         return float(self.__backend_buffer__)
@@ -191,16 +221,16 @@ class NDarray(A):
     # Binary ops (forward)
     # -------------------------
     def __add__(self, other):
-        # return add(self, as_nd(other).astype(self.dtype))
-        return add(self, as_nd(other))
+        return add(self, as_nd(other).astype(self.dtype))
+        # return add(self, as_nd(other))
 
     def __sub__(self, other):
-        # return subtract(self, as_nd(other).astype(self.dtype))
-        return subtract(self, as_nd(other))
+        return subtract(self, as_nd(other).astype(self.dtype))
+        # return subtract(self, as_nd(other))
 
     def __mul__(self, other):
-        # return multiply(self, as_nd(other).astype(self.dtype))
-        return multiply(self, as_nd(other))
+        return multiply(self, as_nd(other).astype(self.dtype))
+        # return multiply(self, as_nd(other))
 
     def __truediv__(self, other):
         return divide(self, as_nd(other).astype(self.dtype))
