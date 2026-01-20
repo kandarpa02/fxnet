@@ -121,7 +121,7 @@ def max(x: Array, axis=None, keepdims=False):
         def grad_fn(g):
             g_raw = getattr(g, '__backend_buffer__', g)
 
-            # Expand out_raw to x_raw shape
+            # expand out to input shape
             out_b = out_raw
             if not keepdims and axis is not None:
                 axes = axis if isinstance(axis, tuple) else (axis,)
@@ -130,12 +130,14 @@ def max(x: Array, axis=None, keepdims=False):
             out_b = broadcast_to(out_b, x_raw.shape)
 
             mask = (x_raw == out_b)
-            denom = sum(mask, axis=axis, keepdims=True)
-            _denom_buff = getattr(denom, '__backend_buffer__', denom)
-            denom = broadcast_to(_denom_buff, x_raw.shape)
+
+            # IMPORTANT: denom must be computed WITHOUT autograd
+            denom = module(d).sum(mask, axis=axis, keepdims=True)
+            denom = broadcast_to(denom, x_raw.shape)
 
             grad_raw = mask * (g_raw / denom)
             return as_nd(grad_raw),
+
 
         return out, (x_w,), grad_fn
 
@@ -165,6 +167,7 @@ def min(x: Array, axis=None, keepdims=False):
         def grad_fn(g):
             g_raw = getattr(g, '__backend_buffer__', g)
 
+            # Expand out_raw to input shape
             out_b = out_raw
             if not keepdims and axis is not None:
                 axes = axis if isinstance(axis, tuple) else (axis,)
@@ -172,10 +175,12 @@ def min(x: Array, axis=None, keepdims=False):
                     out_b = expand_dims(out_b, ax)
             out_b = broadcast_to(out_b, x_raw.shape)
 
+            # mask of minima
             mask = (x_raw == out_b)
-            denom = sum(mask, axis=axis, keepdims=True)
-            _denom_buff = getattr(denom, '__backend_buffer__', denom)
-            denom = broadcast_to(_denom_buff, x_raw.shape)
+
+            # IMPORTANT: use backend primitive, NOT autograd sum
+            denom = module(d).sum(mask, axis=axis, keepdims=True)
+            denom = broadcast_to(denom, x_raw.shape)
 
             grad_raw = mask * (g_raw / denom)
             return as_nd(grad_raw),
