@@ -152,6 +152,7 @@ def min(x: Array, axis=None, keepdims=False):
     def _fun(x):
         array = module(d).array
         from ..array import as_nd
+        from .utils import broadcast_backward
         expand_dims = module(d).expand_dims
         broadcast_to = module(d).broadcast_to
         
@@ -170,11 +171,11 @@ def min(x: Array, axis=None, keepdims=False):
                 axes = axis if isinstance(axis, tuple) else (axis,)
                 for ax in sorted(axes):
                     out_b = expand_dims(out_b, ax)
-            out_b = broadcast_to(out_b, x_raw.shape)
+            out_b = broadcast_backward(out_b, x_raw.shape)
 
             mask = (x_raw == out_b)
             denom = sum(mask, axis=axis, keepdims=True)
-            denom = broadcast_to(denom, x_raw.shape)
+            denom = broadcast_backward(denom, x_raw.shape)
 
             grad_raw = mask * (g_raw / denom)
             return as_nd(grad_raw),
