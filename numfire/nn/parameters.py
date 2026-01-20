@@ -38,9 +38,7 @@ class Variable(NDarray):
     
     def assign(self, value):
         value = _check(value)
-        # self.__backend_buffer__.copy()[...] = value
-        out = Variable(getattr(value, '__backend_buffer__', value), name=self.name)
-        return out
+        self.__backend_buffer__[...] = value
 
     def _repr(self):
         name, shape_str, dtype_str, trainable_str = self.name, self.shape, self.dtype, self.trainable

@@ -171,7 +171,7 @@ class Cell:
         """
 
         for old, new in zip(self.trainable_parameters(), new_params):
-            old = old.assign(new)
+            old.assign(new)
 
     def apply(self, params, *args, **kwargs):
         self.parameters_upload(params)
