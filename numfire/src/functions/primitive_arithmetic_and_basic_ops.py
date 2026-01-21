@@ -231,9 +231,9 @@ def log(x: Array):
         out = as_nd(_log(inp))
 
         def grad_fn(g):
-            return (g / inp,)
+            return (g / x + eps),
 
-        return out, (inp,), grad_fn
+        return out, grad_fn
 
     return MakeOP(_fun)(x)
 
