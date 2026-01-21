@@ -50,3 +50,4 @@ class Linear(Cell):
         if self.if_bias:
             return y + self.bias
         return y
+    

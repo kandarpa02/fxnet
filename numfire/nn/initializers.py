@@ -139,8 +139,7 @@ class RandomUniform(Initializer):
         self.maxval = maxval
 
     def __call__(self, shape: Sequence[int], dtype: DType|str) -> Array:
-        # _key = rng_type(key)
-        return array(np.random.uniform(self.minval, self.maxval), dtype=dtype)
+        return array(np.random.uniform(self.minval, self.maxval, size=tuple(shape)), dtype=dtype)
 
 
 class VarianceScaling(Initializer):
