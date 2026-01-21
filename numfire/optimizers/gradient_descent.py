@@ -1,5 +1,6 @@
 from .base import Optimizer
 from ..nn.base import Cell
+from ..nn.parameters import Parameter
 
 class GradientDescent(Optimizer):
     """Gradient Descent optimizer.
@@ -25,14 +26,14 @@ class GradientDescent(Optimizer):
         The returned parameters must be uploaded back to the model using
         `model.parameters_upload(updated_params)`.
     """
-    def __init__(self, model:Cell, lr=0.1):
-        super().__init__(model)
+    def __init__(self, params:Parameter, lr=0.1):
+        super().__init__(params)
         self.lr = lr
 
     def update_rule(self, grads):
         new_params = [
             p - self.lr * g
-            for p, g in zip(self.model.trainable_parameters(), grads)
+            for p, g in zip(self.params, grads)
         ]
         return new_params
 
@@ -98,13 +99,13 @@ class SGD(Optimizer):
     
     def __init__(
         self,
-        model: Cell,
+        params:Parameter,
         lr: float = 0.01,
         momentum: float = 0.0,
         nesterov: bool = False,
         weight_decay: float = 0.0,
     ):
-        super().__init__(model)
+        super().__init__(params)
 
         self.lr = lr
         self.momentum = momentum
@@ -114,7 +115,7 @@ class SGD(Optimizer):
         self.velocity = {}
 
     def update_rule(self, grads):
-        params = self.model.trainable_parameters()
+        params = self.params
         new_params = []
 
         for p, g in zip(params, grads):

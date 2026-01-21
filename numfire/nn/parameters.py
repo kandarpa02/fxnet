@@ -53,7 +53,7 @@ class Variable(NDarray):
 
     __str__ = __repr__
 
-T = TypeVar("T", bound=Variable)
+T = TypeVar("T", bound=Variable|NDarray)
 
 class Parameter(list[T], Generic[T]):
     __module__ = "numfire.nn"

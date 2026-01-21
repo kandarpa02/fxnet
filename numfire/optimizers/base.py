@@ -1,5 +1,5 @@
 from ..nn.base import Cell
-from ..nn.parameters import Variable, NDarray
+from ..nn.parameters import Variable, NDarray, Parameter
 from typing import Dict, Any
 
 
@@ -43,8 +43,8 @@ class Optimizer:
           optimizers, but adapted to the FakeTensor design.
     """
 
-    def __init__(self, model: Cell):
-        self.model = model
+    def __init__(self, params:Parameter):
+        self.params = params
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.get_state()})"
@@ -61,7 +61,7 @@ class Optimizer:
         return {
             k: v
             for k, v in self.__dict__.items()
-            if k != "model"
+            if k != "params"
         }
     
     def load_state(self, state: Dict[str, Any]):
@@ -95,22 +95,8 @@ class Optimizer:
         """
         raise NotImplementedError
 
-    def update(self, grads):
-        """Applies a single optimization step.
 
-        This method:
-        1. Computes updated parameters via `update_rule(grads=grads)`.
-        2. Uploads them to the model using `model.parameters_upload()`.
-
-        Args:
-            grads: A list of gradients corresponding to the model’s
-                trainable parameters.
-        """
-        new_params = self.update_rule(grads=grads)
-        self.model.parameters_upload(new_params)
-
-
-    def update_and_get_params(self, grads):
+    def apply_update(self, grads) -> Parameter:
         """Applies a single optimization step.
 
         This method:
