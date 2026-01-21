@@ -47,8 +47,12 @@ def as_ndarray(x):
     import numpy as np
     try:
         import cupy as cp
-        cp.cuda.runtime.getDeviceCount()
-        has_cupy = True
+        try:
+            cp.cuda.runtime.getDeviceCount()
+            has_cupy = True
+        except Exception:
+            cp = None
+            has_cupy = False
     except ImportError:
         cp = None
         has_cupy = False
