@@ -53,39 +53,42 @@ def sum(x: Array, axis=None, keepdims=False):
 
 
 # ============================================================
-# MEAN
+# MEAN 
 # ============================================================
 
 def mean(x: Array, axis=None, keepdims=False, dtype=None):
-    d = get_dev(x) 
+    d = get_dev(x)
 
     def _fun(x):
         from ..array import as_nd
-        array = module(d).array
         expand_dims = module(d).expand_dims
         broadcast_to = module(d).broadcast_to
 
         x_w = as_nd(x)
-        _dtype=x_w.dtype if dtype is None else dtype
         x_raw = x_w.__backend_buffer__
+        _dtype = x_w.dtype if dtype is None else dtype
 
         _mean = primitive(d, 'mean')
         out_raw = _mean(x_raw, axis=axis, keepdims=keepdims)
         out = as_nd(out_raw).astype(_dtype)
 
-        # compute N
+        # --------- CORRECT N COMPUTATION (NO AUTOGRAD) ---------
         if axis is None:
             N = x_raw.size
         else:
             axes = axis if isinstance(axis, tuple) else (axis,)
-            dims = [x_raw.shape[a] for a in axes]
-            N = int(prod(array(dims)))
+            axes = tuple(a if a >= 0 else a + x_raw.ndim for a in axes)
+
+            N = 1
+            for a in axes:
+                N *= int(x_raw.shape[a])
+
+        # ------------------------------------------------------
 
         def grad_fn(g):
-            g_raw = getattr(g, '__backend_buffer__', g)
+            g_raw = getattr(g, "__backend_buffer__", g)
 
             if not keepdims and axis is not None:
-                axes = axis if isinstance(axis, tuple) else (axis,)
                 for ax in sorted(axes):
                     g_raw = expand_dims(g_raw, ax)
 
