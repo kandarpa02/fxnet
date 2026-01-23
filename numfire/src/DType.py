@@ -13,7 +13,6 @@ int32    = DType("int32")
 int64    = DType("int64")
 bool_    = DType("bool_")
 
-
 from ..backend import backend as b
 
 def normalize_dtype(dtype):
