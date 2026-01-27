@@ -27,10 +27,11 @@ from .utils import maximum
 from ..ndarray.array_creation import zeros_like
 from xpy import primitive
 from .xpy_utils import get_dev, device_shift, module
-
+from torch import tensor
+import torch
 # Allow scalars as valid inputs
 Array = A | int | float
-from .utils import unwrap
+from .utils import unwrap, maker
 
 # =====================================================================
 # ADD
@@ -51,12 +52,12 @@ def add(x: Array, y: Array):
         dx = broadcast_backward(g, x.shape)
         dy = broadcast_backward(g, y.shape)
     """
-    d = get_dev(x, y) 
+    # d = get_dev(x, y) 
 
     def _fun(x, y):
         from ..array import as_nd
-        _add = primitive(d, 'add')
-        out = as_nd(_add(x, y))
+
+        out = maker(x, y, func=torch.add)
 
         def grad_fn(g):
             g1 = broadcast_backward(g, x.shape)
@@ -82,13 +83,11 @@ def subtract(x: Array, y: Array):
     Returns:
         A: Result of elementwise subtraction.
     """
-    d = get_dev(x, y) 
 
     def _fun(x, y):
         from ..array import as_nd, negative
         
-        sub = primitive(d, 'subtract')
-        out = as_nd(sub(x, y))
+        out = maker(x, y, func=torch.subtract)
 
         def grad_fn(g):
             g1 = broadcast_backward(g, x.shape)
@@ -114,13 +113,11 @@ def negative(x: Array):
     Returns:
         A: The negated tensor.
     """
-    d = get_dev(x) 
 
     def _fun(x):
         from ..array import as_nd, negative as neg
         
-        _neg = primitive(d, 'negative')
-        out = as_nd(_neg(x))
+        out = maker(x, func=torch.neg)
 
         def grad_fn(g):
             return neg(g),
@@ -145,14 +142,12 @@ def multiply(x: Array, y: Array):
     Returns:
         A: Result of elementwise multiplication.
     """
-    d = get_dev(x, y) 
 
     def _fun(x, y):
         from ..array import as_nd
         from . import multiply as mul  # safe recursive use
         
-        _mul = primitive(d, 'multiply')
-        out = as_nd(_mul(x, y))
+        out = maker(x, y, func=torch.mul)
 
         def grad_fn(g):
             g1 = broadcast_backward(mul(g, y), x.shape)
@@ -179,14 +174,12 @@ def divide(x: Array, y: Array):
     Returns:
         A: Result of elementwise division.
     """
-    d = get_dev(x, y) 
 
     def _fun(x, y):
         from ..array import as_nd, negative
         from . import multiply as mul, power, divide as div
 
-        _div = primitive(d, 'divide')
-        out = as_nd(_div(x, y))
+        out = maker(x, y, func=torch.div)
 
         def grad_fn(g):
             from ..ndarray.array_creation import ones_like
@@ -219,7 +212,6 @@ def log(x: Array):
     Autograd:
         d/dx log(x) = 1/x
     """
-    d = get_dev(x)
 
     def _fun(x):
         from ..array import as_nd
@@ -227,8 +219,7 @@ def log(x: Array):
         eps = 1e-12
         inp = maximum(x, eps)
 
-        _log = primitive(d, 'log')
-        out = as_nd(_log(inp))
+        out = maker(x, func=torch.log)
 
         def grad_fn(g):
             return (g / x + eps),
@@ -246,8 +237,8 @@ def exp(x:Array):
     d = get_dev(x) 
     def _fun(x):
         from ..array import as_nd
-        _exp = primitive(d, 'exp')
-        out = as_nd(_exp(x))
+        out = maker(x, func=torch.exp)
+
         def grad_fn(g):
             return (multiply(g, out),)
         
@@ -277,7 +268,7 @@ def sign(x:Array):
     def _fun(x):
         from ..array import as_nd
         _sign = primitive(d, 'sign')
-        out = as_nd(_sign(x))
+        out = maker(x, func=torch.sign)
 
         def grad_fn(g):
             return (as_nd(zeros_like(x)),)
@@ -309,13 +300,11 @@ def power(x: Array, y: Array):
         from . import add, subtract, multiply, log, power
         from ..ndarray.array_creation import ones_like
 
-        _pow = primitive(d, 'power')
-        out = as_nd(_pow(x, y))
+        out = maker(x, y, func=torch.pow)
 
         def grad_fn(g):
             # d/dx = y * x^(y-1)
             _one = ones_like(y)
-            _one = device_shift(_one, get_dev(_one))
             dx = multiply(g, multiply(y, power(x, subtract(y, _one))))
             # d/dy = (x^y) * log(x)
             dy = multiply(g, multiply(out, log(x)))
@@ -348,18 +337,14 @@ def transpose(x: Array, axes=None):
     def _fun(x):
         from ..array import as_nd
         from . import transpose
-        argsort = primitive(d, 'argsort')
-        array = primitive(d, 'array')
 
-        _transpose = primitive(d, 'transpose')
-
-        out = as_nd(transpose(unwrap(x), axes=axes))
+        out = maker(x, func=torch.transpose)
 
         def grad_fn(g):
             if axes is None:
                 rev_axes = None
             else:
-                rev_axes = tuple(argsort(array(axes)))
+                rev_axes = tuple(torch.argsort(torch.tensor(axes)))
             return transpose(g, axes=rev_axes),
 
         return out, (as_nd(x),), grad_fn
@@ -396,10 +381,7 @@ def matmul(a: Array, b: Array):
         from . import matmul
         from .primitive_array_ops import expand_dims
 
-        _mm = module(d).matmul
-        swapaxes = module(d).swapaxes
-
-        out = as_nd(_mm(unwrap(a), unwrap(b)))
+        out = maker(a, b, func=torch.matmul)
 
         def grad_fn(g):
             A, B, G = a, b, g
@@ -410,9 +392,9 @@ def matmul(a: Array, b: Array):
             if A.ndim == 1:              # vector @ matrix
                 A2 = expand_dims(A, 0)  # (1, K)
                 G2 = G if G.ndim > 1 else expand_dims(G, 0)
-                dA = squeeze(matmul(G2, swapaxes(unwrap(B), -1, -2)), 0)
+                dA = squeeze(matmul(G2, torch.swapaxes(unwrap(B), -1, -2)), 0)
             else:
-                dA = G @ swapaxes(unwrap(B), -1, -2)
+                dA = G @ torch.swapaxes(unwrap(B), -1, -2)
 
             # ----------------------------
             # dB
@@ -420,9 +402,9 @@ def matmul(a: Array, b: Array):
             if B.ndim == 1:              # matrix @ vector
                 B2 = expand_dims(B, -1)  # (K, 1)
                 G2 = G if G.ndim > 1 else expand_dims(G, -1)
-                dB = squeeze(matmul(swapaxes(unwrap(A), -1, -2), G2), -1)
+                dB = squeeze(matmul(torch.swapaxes(unwrap(A), -1, -2), G2), -1)
             else:
-                dB = matmul(swapaxes(unwrap(A), -1, -2), G)
+                dB = matmul(torch.swapaxes(unwrap(A), -1, -2), G)
 
             return as_nd(dA), as_nd(dB)
 

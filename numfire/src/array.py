@@ -1,5 +1,8 @@
 from ._typing import Array as A
 from ..backend.backend import xp   
+import numpy as np
+import torch
+from torch import tensor, dtype
 from .functions import *
 from .functions.comparison import (
     equal, not_equal, 
@@ -44,43 +47,22 @@ def as_ndarray(x):
     """
     Normalize input to a backend ndarray WITHOUT changing device.
     """
-    import numpy as np
-    try:
-        import cupy as cp
-        try:
-            cp.cuda.runtime.getDeviceCount()
-            has_cupy = True
-        except Exception:
-            cp = None
-            has_cupy = False
-    except ImportError:
-        cp = None
-        has_cupy = False
-
-    # ---- Backend ndarrays (KEEP DEVICE) ----
-    if has_cupy and isinstance(x, cp.ndarray):
-        return x
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     if isinstance(x, np.ndarray):
-        return x
+        return tensor(x, device=device)
 
-    # ---- Our NDarray (unwrap only) ----
     if isinstance(x, NDarray):
         return x.__backend_buffer__
 
-    # ---- NumPy scalar ----
     if isinstance(x, np.generic):
-        return np.asarray(x)
+        return tensor(x, device=device).detach()
 
-    # ---- CuPy scalar ----
-    if has_cupy and isinstance(x, cp.generic):
-        return cp.asarray(x)
-
-    # ---- Python scalars / lists ----
-    if isinstance(x, (int, float, bool, list, tuple)):
-        if has_cupy:
-            return cp.asarray(x)
-        return np.asarray(x)
+    if isinstance(x, (int, float, bool, list)):
+        return tensor(x, device=device).detach()
+    
+    if isinstance(x, torch.Tensor):
+        return x
 
     raise TypeError(f"{type(x)} not supported as input")
 
@@ -111,10 +93,10 @@ class _AtSet:
 # -------------------------
 
 class NDarray(A):
-    def __init__(self, data, dtype=None) -> None:
+    def __init__(self, data, dtype:dtype|None=None) -> None:
         super().__init__()
         arr = as_ndarray(data)
-        self.__backend_buffer__ = arr.astype(dtype) if dtype else arr
+        self.__backend_buffer__ = arr.to(dtype=dtype) if dtype else arr
         self.train = True
         self.id = name()
         
@@ -124,8 +106,8 @@ class NDarray(A):
 
     @property
     def np(self):
-        arr = self.__backend_buffer__.view()
-        arr.flags.writeable = False
+        arr = self.__backend_buffer__
+        # arr.flags.writeable = False
         return arr
 
     @property
@@ -134,11 +116,12 @@ class NDarray(A):
     
     @property
     def dtype(self):
-        return self.__backend_buffer__.dtype.__str__()
+        _str = self.__backend_buffer__.dtype.__str__()
+        return DType.from_torch_dtype(_str)
 
     @property
     def shape(self):
-        return self.__backend_buffer__.shape
+        return tuple(self.__backend_buffer__.shape)
     
     @property
     def ndim(self):
@@ -146,7 +129,7 @@ class NDarray(A):
     
     @property
     def size(self):
-        return self.__backend_buffer__.size
+        return self.__backend_buffer__.numel()
 
     def __len__(self):
         return len(self.__backend_buffer__)
@@ -158,18 +141,21 @@ class NDarray(A):
     # Display helpers
     # -------------------------
     def __repr__(self):
-        return repr(self.__backend_buffer__)
+        return 'Tensor'+self.__backend_buffer__.__str__().removeprefix('tensor')
 
     def __str__(self):
-        return str(self.__backend_buffer__)
+        return self.__repr__()
 
     def __array__(self):
         """Allows NumPy to extract underlying data when needed."""
         return self.__backend_buffer__
+    
+    def __tensor__(self):
+        return self.__backend_buffer__
 
-    @property
-    def __cuda_array_interface__(self):
-        return self.__backend_buffer__.__cuda_array_interface__
+    # @property
+    # def __cuda_array_interface__(self):
+    #     return self.__backend_buffer__.__cuda_array_interface__
 
     __array_priority__ = 200 
 
@@ -183,7 +169,7 @@ class NDarray(A):
         pass
 
     def copy(self):
-        x = self.__backend_buffer__.copy()
+        x = torch.t_copy(self.__backend_buffer__)
         copied = NDarray(x)
         copied.__mutate_state__(id=self.id)
         return copied
@@ -202,7 +188,7 @@ class NDarray(A):
         self.__backend_buffer__[k] = v
 
     def __getitem__(self, idx):
-        return NDarray(self.__backend_buffer__[idx].copy())
+        return NDarray(self.__backend_buffer__[idx])
     
     @property
     def at(self):
@@ -320,4 +306,67 @@ class NDarray(A):
 
     def __rge__(self, other):
         return greater_equal(as_nd(other), self)
+
+
+from typing import Generic, TypeVar
+def as_var(data):
+    return getattr(data, "__backend_buffer__", data)
+
+def _check(data):
+    if isinstance(data, Variable|NDarray):
+        return data.__backend_buffer__
+    else:
+        return data
+
+class Variable(NDarray):
+    def __init__(self, data, dtype:DType|str|None=None, name: str|None = None):
+        super().__init__(as_var(data), normalize_dtype(dtype))
+        self.train = True
+        self.name = name if name is not None else 'Variable'
+
+    __module__ = "numfire."
+    __qualname__ = "Variable"
+
+    @property
+    def np(self):
+        return self.__backend_buffer__
+
+    @property
+    def trainable(self):
+        return self.train
+    
+    def freeze(self):
+        self.train = False
+
+    def unfreeze(self):
+        self.train = True
+    
+    def assign(self, value):
+        value = _check(value)
+        self.__backend_buffer__[...] = value
+
+    def _repr(self):
+        name, shape_str, dtype_str, trainable_str = self.name, self.shape, self.dtype, self.trainable
+        indent = len("Variable(") * " "
+        pref = f"Variable('{name}', shape={shape_str} dtype={dtype_str}, trainable={trainable_str}\n"
+        data = self.np
+        pref += data.__repr__()
+        return pref + ")"
+    
+    def __repr__(self):
+        name, shape_str, dtype_str, trainable_str = self.name, self.shape, self.dtype, self.trainable
+        # indent = len("Variable(") * " "
+        pref = f"Variable('{name}', shape={shape_str} dtype={dtype_str}, trainable={trainable_str}\n"
+        return pref + 'Tensor'+self.__backend_buffer__.__str__().removeprefix('tensor') + ")"
+
+    __str__ = __repr__
+
+T = TypeVar("T", bound=Variable|NDarray)
+
+class Parameter(list[T], Generic[T]):
+    __module__ = "numfire.nn"
+    __qualname__ = "Parameter"
+
+    def __init_subclass__(cls) -> None:
+        return super().__init_subclass__()
 

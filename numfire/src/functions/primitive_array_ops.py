@@ -14,14 +14,11 @@ All operations support:
 from __future__ import annotations
 from .._typing import Array as A
 from ..base import MakeOP
-from ..utils import broadcast_backward
 from ...backend.backend import xp
+from .utils import unwrap, maker
+import torch
 
 Array = A   # alias
-
-def unwrap(x):
-    from ..array import NDarray
-    return x.np if isinstance(x, NDarray) else x
 
 # =====================================================================
 # RESHAPE
@@ -41,12 +38,10 @@ def reshape(x: Array, shape):
     Gradient:
         d/dx reshape(x, shape) = reshape(g, x.shape)
     """
-    lib = xp()
-
     def _fun(x):
         from ..array import as_nd
         from . import reshape
-        out = as_nd(lib.reshape(unwrap(x), shape))
+        out = maker(x, func=torch.reshape)
 
         def grad_fn(g):
             return reshape(g, x.shape),
@@ -74,13 +69,10 @@ def expand_dims(x: Array, axis):
     Gradient:
         d/dx expand_dims(x, axis) = squeeze(g, axis)
     """
-    lib = xp()
-
     def _fun(x):
         from ..array import as_nd
         from . import squeeze
-        x = unwrap(x)
-        out = as_nd(lib.expand_dims(x, axis))
+        out = maker(x, func=lambda x: torch.unsqueeze(x, axis))
 
         def grad_fn(g):
             return squeeze(g, axis=axis),
@@ -108,19 +100,17 @@ def squeeze(x: Array, axis=None):
     Gradient:
         d/dx squeeze(x, axis) = expand_dims(g, axis)
     """
-    lib = xp()
-
     def _fun(x):
         from ..array import as_nd
         from . import expand_dims
-        x_nd = as_nd(x)
-        out = as_nd(lib.squeeze(unwrap(x), axis=axis))
+
+        out = maker(x, func=lambda x: torch.squeeze(x, axis))
 
         def grad_fn(g):
             # Note: expand_dims requires exact axis integer or tuple.
             return expand_dims(g, axis=axis),
 
-        return out, (x_nd,), grad_fn
+        return out, (as_nd(x),), grad_fn
 
     return MakeOP(_fun)(x)
 
@@ -145,19 +135,17 @@ def clip(x: Array, min_val, max_val):
         g if x ∈ [min_val, max_val]
         0 otherwise (subgradient chosen as 0 at boundary)
     """
-    lib = xp()
 
     def _fun(x):
         from ..array import as_nd
         from .primitive_arithmetic_and_basic_ops import multiply as mul
-        x_nd = as_nd(x)
-        out = as_nd(lib.clip(unwrap(x), min_val, max_val))
+        out = maker(x, func=lambda x: torch.clip(x, min_val, max_val))
 
         def grad_fn(g):
-            mask = (x_nd >= min_val) & (x_nd <= max_val)
+            mask = (x >= min_val) & (x <= max_val)
             return mul(g, mask),
 
-        return out, (x_nd,), grad_fn
+        return out, (as_nd(x),), grad_fn
 
     return MakeOP(_fun)(x)
 
@@ -180,16 +168,15 @@ def abs(x: Array):
         d/dx abs(x) = sign(x)
         (subgradient at 0 chosen as 0)
     """
-    lib = xp()
 
     def _fun(x):
         from ..array import as_nd
-        x_nd = as_nd(x)
-        out = as_nd(lib.abs(as_nd(x)))
+        from .primitive_arithmetic_and_basic_ops import sign
+        out = maker(x, func=torch.abs)
 
         def grad_fn(g):
-            return as_nd(g * lib.sign(unwrap(x))),
+            return g * sign(x),
 
-        return out, (x_nd,), grad_fn
+        return out, (as_nd(x),), grad_fn
 
     return MakeOP(_fun)(x)

@@ -8,8 +8,13 @@ from xpy import primitive
 from typing import Union
 
 def unwrap(x):
-    from ..array import NDarray
-    return x.np if isinstance(x, NDarray) else x
+    return getattr(x, '__backend_buffer__', x)
+
+def maker(*args, func, nd=True):
+    from ..array import as_nd
+    _args = tuple(unwrap(a) for a in args)
+    out = func(*_args)
+    return as_nd(out) if nd else out
 
 # =====================================================================
 # Maximum

@@ -1,9 +1,20 @@
+import torch
+
 class DType:
     def __init__(self, name):
         self.name = name
 
-    def to_native(self, xp):
-        return getattr(xp, self.name)
+    def native(self):
+        return getattr(torch, self.name)
+    
+    def __repr__(self) -> str:
+        return f"numfire.{self.name}"
+
+    __str__ = __repr__
+
+    @classmethod
+    def from_torch_dtype(cls, dtype:str):
+        return DType(dtype.removeprefix('torch.'))
 
 float16 = DType("float16")
 float32 = DType("float32")
@@ -11,13 +22,14 @@ float64 = DType("float64")
 int16    = DType("int16")
 int32    = DType("int32")
 int64    = DType("int64")
-bool_    = DType("bool_")
+bool_    = DType("bool")
 
-from ..backend import backend as b
+def dname(d):
+	f = str(d).removeprefix("<class '").removesuffix("'>")
+	dmap = {'float':float32, 'bool':bool_, 'int':int32}
+	return dmap.get(f, float32)
 
-def normalize_dtype(dtype):
-    xp = b.xp()
-
+def normalize_dtype(dtype) -> torch.dtype:
     if dtype is None:
         return None
     
@@ -27,14 +39,20 @@ def normalize_dtype(dtype):
 
     # NumPy shorthand boolean
     if dtype == '?':
-        return bool_.to_native(xp)
+        return bool_.native()
 
     # If our abstract DType
     if isinstance(dtype, DType):
-        return dtype.to_native(xp)
+        return dtype.native()
+    
+    if isinstance(dtype, type):
+        return dname(dtype).native()
 
     # If string passed
     if isinstance(dtype, str):
-        return getattr(xp, dtype)
+        return getattr(torch, dtype)
 
     raise TypeError(f"Invalid dtype: {dtype}")
+
+def reverse_dtype(dtype)->str:
+    return DType.from_torch_dtype(dtype=dtype).__repr__()

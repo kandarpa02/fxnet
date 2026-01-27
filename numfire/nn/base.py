@@ -272,3 +272,52 @@ def unflatten(children, meta):
 
 # Register Cell as pytree
 register_tree_node(Cell, flatten, unflatten)
+
+from typing import Sequence, Callable, Optional
+from contextlib import contextmanager
+from ..src.array import NDarray
+from ..backend.backend import xp
+from ..src.tree_util import flatten_pytree
+
+class _init_helper:
+    def __init__(self, shape) -> None:
+        self.shape = shape
+
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, *args):
+        self.shape = None
+    
+class Layer(Cell):
+    def __init__(self, input_shape: Optional[Sequence|None]=None, name: str | None = None):
+        super().__init__(name)
+        if not input_shape is None:
+            _shape, _ = flatten_pytree(input_shape)
+            self._inp_shape = tuple(_shape)
+        else:
+            self._inp_shape = input_shape
+    
+    def add_weight(
+            self, 
+            shape:Sequence[int], 
+            dtype:Any,
+            initializer:Callable,
+            trainable:bool
+            ): 
+        data = initializer(shape=shape, dtype=dtype)
+        return Variable(data)
+    
+    def once(self):
+        return _init_helper(self._inp_shape)
+    
+    def __call__(self, *args):
+        for arg in args:
+            if isinstance(arg, NDarray|xp().ndarray):
+                self._inp_shape = arg.shape
+            else:
+                raise ValueError(f'Unknown object {type(arg)}')
+        return self.call(*args)
+
+    def call(self, *args):
+        raise NotImplementedError

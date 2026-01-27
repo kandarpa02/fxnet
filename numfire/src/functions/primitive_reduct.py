@@ -12,28 +12,20 @@ from __future__ import annotations
 from .._typing import Array as A
 from ..base import MakeOP
 from xpy import primitive
-from .xpy_utils import get_dev, module
+import torch
 Array = A
-
+from .utils import maker, unwrap
 
 # ============================================================
 # SUM
 # ============================================================
 
 def sum(x: Array, axis=None, keepdims=False):
-    d = get_dev(x) 
 
     def _fun(x):
         from ..array import as_nd
-        expand_dims = module(d).expand_dims
-        broadcast_to = module(d).broadcast_to
 
-        x_w = as_nd(x)
-        x_raw = x_w.__backend_buffer__
-        
-        _sum = primitive(d, 'sum')
-        out_raw = _sum(x_raw, axis=axis, keepdims=keepdims)
-        out = as_nd(out_raw)
+        out = maker(x, func=torch.sum)
 
         def grad_fn(g):
             g_raw = getattr(g, '__backend_buffer__', g)
@@ -42,12 +34,12 @@ def sum(x: Array, axis=None, keepdims=False):
             if not keepdims and axis is not None:
                 axes = axis if isinstance(axis, tuple) else (axis,)
                 for ax in sorted(axes):
-                    g_raw = expand_dims(g_raw, ax)
+                    g_raw = torch.unsqueeze(g_raw, ax)
 
-            g_raw = broadcast_to(g_raw, x_raw.shape)
+            g_raw = torch.broadcast_to(g_raw, x.shape)
             return as_nd(g_raw),
 
-        return out, (x_w,), grad_fn
+        return out, (as_nd(x),), grad_fn
 
     return MakeOP(_fun)(x)
 
