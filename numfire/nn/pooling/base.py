@@ -1,125 +1,6 @@
 from ...src.functions import mean, reshape, max
-from ...src.functions.convolution import im2col_nd
+from ...src.functions.im2col import im2col, normalize_padding, _to_tuple, get_out_shape
 
-# def _check(k, s):
-#     assert k == s, "This pooling implementation requires kernel_size == stride"
-
-# def _normalize_pool_param(x, dims, name):
-#     if isinstance(x, int):
-#         return (x,) * dims
-#     if isinstance(x, (tuple, list)):
-#         assert len(x) == dims, (
-#             f"{name} must have {dims} values, got {len(x)}"
-#         )
-#         return tuple(x)
-#     raise TypeError(f"Invalid {name} type: {type(x)}")
-
-
-# def _check_pool_params(kernel_size, stride, dims):
-#     k = _normalize_pool_param(kernel_size, dims, "kernel_size")
-#     s = _normalize_pool_param(stride, dims, "stride")
-
-#     assert k == s, (
-#         "This pooling implementation requires kernel_size == stride "
-#         f"(got kernel_size={k}, stride={s})"
-#     )
-
-#     # enforce uniform pooling window (reshape requirement)
-#     assert len(set(k)) == 1, (
-#         "Non-uniform kernel sizes are not supported by reshape-based pooling"
-#     )
-
-#     return k[0]   # scalar window size
-
-
-# def max_pool1d(x, kernel_size=2, stride=2):
-#     s = _check_pool_params(kernel_size, stride, dims=1)
-
-#     N, C, L = x.shape
-#     L_out = L // s
-
-#     x = x[:, :, :L_out * s]
-#     x = reshape(x, [N, C, L_out, s])
-
-#     return max(x, axis=3)
-
-
-# def avg_pool1d(x, kernel_size=2, stride=2):
-#     s = _check_pool_params(kernel_size, stride, dims=1)
-
-#     N, C, L = x.shape
-#     L_out = L // s
-
-#     x = x[:, :, :L_out * s]
-#     x = reshape(x, [N, C, L_out, s])
-
-#     return mean(x, axis=3)
-
-
-# def max_pool2d(x, kernel_size=2, stride=2):
-#     s = _check_pool_params(kernel_size, stride, dims=2)
-
-#     N, C, H, W = x.shape
-#     H_out = H // s
-#     W_out = W // s
-
-#     x = x[:, :, :H_out * s, :W_out * s]
-#     x = reshape(x, [N, C, H_out, s, W_out, s])
-
-#     return max(x, axis=(3, 5))
-
-
-# def avg_pool2d(x, kernel_size=2, stride=2):
-#     s = _check_pool_params(kernel_size, stride, dims=2)
-
-#     N, C, H, W = x.shape
-#     H_out = H // s
-#     W_out = W // s
-
-#     x = x[:, :, :H_out * s, :W_out * s]
-#     x = reshape(x, [N, C, H_out, s, W_out, s])
-
-#     return mean(x, axis=(3, 5))
-
-
-# def max_pool3d(x, kernel_size=2, stride=2):
-#     s = _check_pool_params(kernel_size, stride, dims=3)
-
-#     N, C, D, H, W = x.shape
-#     D_out = D // s
-#     H_out = H // s
-#     W_out = W // s
-
-#     x = x[:, :, :D_out * s, :H_out * s, :W_out * s]
-#     x = reshape(
-#         x,
-#         [N, C,
-#          D_out, s,
-#          H_out, s,
-#          W_out, s]
-#     )
-
-#     return max(x, axis=(3, 5, 7))
-
-
-# def avg_pool3d(x, kernel_size=2, stride=2):
-#     s = _check_pool_params(kernel_size, stride, dims=3)
-
-#     N, C, D, H, W = x.shape
-#     D_out = D // s
-#     H_out = H // s
-#     W_out = W // s
-
-#     x = x[:, :, :D_out * s, :H_out * s, :W_out * s]
-#     x = reshape(
-#         x,
-#         [N, C,
-#          D_out, s,
-#          H_out, s,
-#          W_out, s]
-#     )
-
-#     return mean(x, axis=(3, 5, 7))
 
 def _can_use_reshape_pool(k, s, p, d): # UNUSED FOR NOW
     return (
@@ -129,14 +10,16 @@ def _can_use_reshape_pool(k, s, p, d): # UNUSED FOR NOW
         and all(di == 1 for di in d)
     )
 
+def _normalize_nd(padding, dims, name):
+    if isinstance(padding, int):
+        return [(padding, padding)] * dims
 
-def _normalize_nd(x, dims, name):
-    if isinstance(x, int):
-        return (x,) * dims
-    if isinstance(x, (tuple, list)):
-        assert len(x) == dims, f"{name} must have {dims} values"
-        return tuple(x)
-    raise TypeError(f"Invalid {name}: {type(x)}")
+    if isinstance(padding, (tuple, list)):
+        assert len(padding) == dims
+        return padding
+
+    raise TypeError(f"Invalid {name}: {type(padding)}")
+
 
 def _pool_nd_im2col(
     x,
@@ -148,18 +31,20 @@ def _pool_nd_im2col(
 ):
     dims = x.ndim - 2
 
-    k = _normalize_nd(kernel_size, dims, "kernel_size")
-    s = _normalize_nd(stride, dims, "stride")
-    p = _normalize_nd(padding, dims, "padding")
-    d = _normalize_nd(dilation, dims, "dilation")
+    padding = normalize_padding(padding, x.shape, _to_tuple(kernel_size, dims), _to_tuple(stride, dims), _to_tuple(dilation, dims))
+    k = _to_tuple(kernel_size, dims)      # tuple[int]
+    s = _to_tuple(stride, dims)           # tuple[int]
+    d = _to_tuple(dilation, dims)
 
-    cols, out_shape = im2col_nd(
+    cols = im2col(
         x,
         kernel_shape=k,
         stride=s,
-        padding=p,
+        padding=padding,
         dilation=d,
     )
+
+    out_shape = get_out_shape(x, cols, k, s, padding, d)
     # cols shape: (N, C * prod(k), prod(out_shape))
 
     N, CK, O = cols.shape
@@ -172,7 +57,11 @@ def _pool_nd_im2col(
 
     return reshape(y, [N, C, *out_shape])
 
-def max_pool1d(x, kernel_size=2, stride=2, padding=0, dilation=1):
+from typing import Any, Union
+Im2ColArgs = Union[list[int], tuple[int], int, str]
+
+def max_pool1d(x, kernel_size:Im2ColArgs=2, stride:Im2ColArgs=2, padding:Im2ColArgs='same', dilation:Im2ColArgs=1):
+    
     return _pool_nd_im2col(
         x,
         kernel_size,
@@ -183,7 +72,7 @@ def max_pool1d(x, kernel_size=2, stride=2, padding=0, dilation=1):
     )
 
 
-def avg_pool1d(x, kernel_size=2, stride=2, padding=0, dilation=1):
+def avg_pool1d(x, kernel_size:Im2ColArgs=2, stride:Im2ColArgs=2, padding:Im2ColArgs='same', dilation:Im2ColArgs=1):
     return _pool_nd_im2col(
         x,
         kernel_size,
@@ -193,7 +82,7 @@ def avg_pool1d(x, kernel_size=2, stride=2, padding=0, dilation=1):
         reduce=mean,
     )
 
-def max_pool2d(x, kernel_size=2, stride=2, padding=0, dilation=1):
+def max_pool2d(x, kernel_size:Im2ColArgs=2, stride:Im2ColArgs=2, padding:Im2ColArgs='same', dilation:Im2ColArgs=1):
     return _pool_nd_im2col(
         x,
         kernel_size,
@@ -204,7 +93,7 @@ def max_pool2d(x, kernel_size=2, stride=2, padding=0, dilation=1):
     )
 
 
-def avg_pool2d(x, kernel_size=2, stride=2, padding=0, dilation=1):
+def avg_pool2d(x, kernel_size:Im2ColArgs=2, stride:Im2ColArgs=2, padding:Im2ColArgs='same', dilation:Im2ColArgs=1):
     return _pool_nd_im2col(
         x,
         kernel_size,
@@ -214,7 +103,7 @@ def avg_pool2d(x, kernel_size=2, stride=2, padding=0, dilation=1):
         reduce=mean,
     )
 
-def max_pool3d(x, kernel_size=2, stride=2, padding=0, dilation=1):
+def max_pool3d(x, kernel_size:Im2ColArgs=2, stride:Im2ColArgs=2, padding:Im2ColArgs='same', dilation:Im2ColArgs=1):
     return _pool_nd_im2col(
         x,
         kernel_size,
@@ -225,7 +114,7 @@ def max_pool3d(x, kernel_size=2, stride=2, padding=0, dilation=1):
     )
 
 
-def avg_pool3d(x, kernel_size=2, stride=2, padding=0, dilation=1):
+def avg_pool3d(x, kernel_size:Im2ColArgs=2, stride:Im2ColArgs=2, padding:Im2ColArgs='same', dilation:Im2ColArgs=1):
     return _pool_nd_im2col(
         x,
         kernel_size,

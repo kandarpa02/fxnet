@@ -12,24 +12,23 @@ All operations support:
 """
 
 from __future__ import annotations
-from .._typing import Array as A
+from .._typing import TensorLike
 from ..base import MakeOP
 from ...backend.backend import xp
 from .utils import unwrap, maker
 import torch
 
-Array = A   # alias
 
 # =====================================================================
 # RESHAPE
 # =====================================================================
 
-def reshape(x: Array, shape):
+def reshape(x: TensorLike, shape):
     """
     Reshape tensor to a new shape.
 
     Args:
-        x (Array): Input tensor.
+        x (TensorLike): Input tensor.
         shape (tuple[int]): New shape.
 
     Returns:
@@ -41,7 +40,7 @@ def reshape(x: Array, shape):
     def _fun(x):
         from ..array import as_nd
         from . import reshape
-        out = maker(x, func=torch.reshape)
+        out = maker(x, func=lambda x:torch.reshape(x, shape=shape))
 
         def grad_fn(g):
             return reshape(g, x.shape),
@@ -55,12 +54,12 @@ def reshape(x: Array, shape):
 # EXPAND_DIMS
 # =====================================================================
 
-def expand_dims(x: Array, axis):
+def expand_dims(x: TensorLike, axis):
     """
     Insert a new axis at the specified position.
 
     Args:
-        x (Array): Input tensor.
+        x (TensorLike): Input tensor.
         axis (int): Axis to insert.
 
     Returns:
@@ -86,12 +85,12 @@ def expand_dims(x: Array, axis):
 # SQUEEZE
 # =====================================================================
 
-def squeeze(x: Array, axis=None):
+def squeeze(x: TensorLike, axis=None):
     """
     Remove axes of size 1.
 
     Args:
-        x (Array): Input tensor.
+        x (TensorLike): Input tensor.
         axis (int | tuple[int] | None): Axes to remove.
 
     Returns:
@@ -119,14 +118,14 @@ def squeeze(x: Array, axis=None):
 # CLIP
 # =====================================================================
 
-def clip(x: Array, min_val, max_val):
+def clip(x: TensorLike, min_val, max_val):
     """
     Clip values to the range [min_val, max_val].
 
     Args:
-        x (Array): Input tensor.
-        min_val (scalar or Array): Lower bound.
-        max_val (scalar or Array): Upper bound.
+        x (TensorLike): Input tensor.
+        min_val (scalar or TensorLike): Lower bound.
+        max_val (scalar or TensorLike): Upper bound.
 
     Returns:
         A: Clipped tensor.
@@ -154,12 +153,12 @@ def clip(x: Array, min_val, max_val):
 # ABS
 # =====================================================================
 
-def abs(x: Array):
+def abs(x: TensorLike):
     """
     Elementwise absolute value.
 
     Args:
-        x (Array): Input tensor.
+        x (TensorLike): Input tensor.
 
     Returns:
         A: |x|

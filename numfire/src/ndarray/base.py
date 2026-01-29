@@ -1,7 +1,10 @@
 from ..array import NDarray
-from ..DType import normalize_dtype
+from ..DType import normalize_dtype, DType
 from ...src.functions.xpy_utils import get_dev, module, device_shift
-from ...backend.backend import xp
+import torch
+from .._typing import TensorLike
+
+DtypeLike = DType|str|None
 
 def array(x, dtype=None):
     """
@@ -9,4 +12,38 @@ def array(x, dtype=None):
     """
     _dt = normalize_dtype(dtype)
     buff = getattr(x, '__backend_buffer__', x)
-    return NDarray(xp().array(buff), _dt)
+    return NDarray(buff, _dt)
+
+def constant(x: TensorLike, dtype: DtypeLike = None):
+    """
+    Create an immutable tensor with a fixed value.
+
+    Constants participate fully in automatic differentiation, but are
+    immutable and are not considered model parameters. As a result,
+    constants are ignored by optimizers and do not have an identity
+    (such as a name or trainable flag).
+
+    This function is intended for inputs, targets, masks, and other
+    fixed values where gradient flow is required but parameter updates
+    are not.
+
+    Parameters
+    ----------
+    x : TensorLike
+        Initial value of the tensor. Can be a Python scalar, list, tuple,
+        NumPy array, or compatible tensor-like object.
+    dtype : DtypeLike, optional
+        Data type of the tensor. If None, the dtype is inferred from `x`.
+
+    Returns
+    -------
+    Tensor
+        An immutable tensor supporting automatic differentiation.
+
+    Examples
+    --------
+    >>> a = nf.constant([1., 3, 5, 6], nf.float32)
+    >>> print(a)
+    Tensor([1., 3., 5., 6.])
+    """
+    return array(x, dtype)

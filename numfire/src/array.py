@@ -50,7 +50,7 @@ def as_ndarray(x):
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     if isinstance(x, np.ndarray):
-        return tensor(x, device=device)
+        return tensor(x, device=device).detach()
 
     if isinstance(x, NDarray):
         return x.__backend_buffer__
@@ -319,6 +319,47 @@ def _check(data):
         return data
 
 class Variable(NDarray):
+    """
+    Create a mutable, trainable tensor with an explicit identity.
+
+    `Variable` represents model parameters or any value that is expected
+    to be updated during optimization. Unlike `constant`, a Variable
+    participates in gradient computation and can be modified by
+    optimizers.
+
+    Each Variable has a stable identity and optional name, making it
+    suitable for parameter tracking, checkpointing, and debugging.
+
+    Parameters
+    ----------
+    x : TensorLike
+        Initial value of the variable. Can be a Python scalar, list,
+        tuple, NumPy array, or compatible tensor-like object.
+    dtype : DtypeLike
+        Data type of the variable.
+    name : str, optional
+        Human-readable identifier for the variable. Used for debugging,
+        parameter inspection, and serialization.
+    trainable : bool, default=True
+        Whether the variable participates in gradient-based optimization.
+
+    Attributes
+    ----------
+    value : Tensor
+        The underlying tensor value.
+    name : str or None
+        Name of the variable.
+    trainable : bool
+        Whether gradients are accumulated and applied to this variable.
+
+    Examples
+    --------
+    >>> a = nf.Variable([1., 3, 5, 6], nf.float32, name="a")
+    >>> print(a)
+    Variable('a', shape=(4,), dtype=numfire.float32, trainable=True)
+    Tensor([1., 3., 5., 6.])
+    """
+
     def __init__(self, data, dtype:DType|str|None=None, name: str|None = None):
         super().__init__(as_var(data), normalize_dtype(dtype))
         self.train = True

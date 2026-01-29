@@ -12,12 +12,12 @@ All operations support:
     • Mixed scalar/array inputs
     • Any backend implementing the xp() interface (NumPy or CuPy)
 
-The type `Array` represents any valid input to these ops:
+The type `TensorLike` represents any valid input to these ops:
 FakeTensor NDarray, backend arrays, or Python scalars.
 """
 
 from __future__ import annotations
-from .._typing import Array as A
+from .._typing import TensorLike
 from ..base import MakeOP
 from ..utils import broadcast_backward
 from ...backend.backend import xp
@@ -29,21 +29,19 @@ from xpy import primitive
 from .xpy_utils import get_dev, device_shift, module
 from torch import tensor
 import torch
-# Allow scalars as valid inputs
-Array = A | int | float
 from .utils import unwrap, maker
 
 # =====================================================================
 # ADD
 # =====================================================================
 
-def add(x: Array, y: Array):
+def add(x: TensorLike, y: TensorLike):
     """
     Elementwise addition: ``x + y``.
 
     Args:
-        x (Array): First operand.
-        y (Array): Second operand.
+        x (TensorLike): First operand.
+        y (TensorLike): Second operand.
 
     Returns:
         A: Result of elementwise addition.
@@ -72,13 +70,13 @@ def add(x: Array, y: Array):
 # SUBTRACT
 # =====================================================================
 
-def subtract(x: Array, y: Array):
+def subtract(x: TensorLike, y: TensorLike):
     """
     Elementwise subtraction: ``x - y``.
 
     Args:
-        x (Array): Minuend.
-        y (Array): Subtrahend.
+        x (TensorLike): Minuend.
+        y (TensorLike): Subtrahend.
 
     Returns:
         A: Result of elementwise subtraction.
@@ -103,12 +101,12 @@ def subtract(x: Array, y: Array):
 # NEGATIVE
 # =====================================================================
 
-def negative(x: Array):
+def negative(x: TensorLike):
     """
     Elementwise negation: ``-x``.
 
     Args:
-        x (Array): Input.
+        x (TensorLike): Input.
 
     Returns:
         A: The negated tensor.
@@ -131,13 +129,13 @@ def negative(x: Array):
 # MULTIPLY
 # =====================================================================
 
-def multiply(x: Array, y: Array):
+def multiply(x: TensorLike, y: TensorLike):
     """
     Elementwise multiplication: ``x * y``.
 
     Args:
-        x (Array): First operand.
-        y (Array): Second operand.
+        x (TensorLike): First operand.
+        y (TensorLike): Second operand.
 
     Returns:
         A: Result of elementwise multiplication.
@@ -163,13 +161,13 @@ def multiply(x: Array, y: Array):
 # DIVIDE
 # =====================================================================
 
-def divide(x: Array, y: Array):
+def divide(x: TensorLike, y: TensorLike):
     """
     Elementwise division: ``x / y``.
 
     Args:
-        x (Array): Numerator.
-        y (Array): Denominator.
+        x (TensorLike): Numerator.
+        y (TensorLike): Denominator.
 
     Returns:
         A: Result of elementwise division.
@@ -199,12 +197,12 @@ def divide(x: Array, y: Array):
 # LOG
 # =====================================================================
 
-def log(x: Array):
+def log(x: TensorLike):
     """
     Natural logarithm: ``log(x)``.
 
     Args:
-        x (Array): Input tensor.
+        x (TensorLike): Input tensor.
 
     Returns:
         A: ``log(x)``
@@ -217,7 +215,7 @@ def log(x: Array):
         from ..array import as_nd
 
         eps = 1e-12
-        inp = maximum(x, eps)
+        inp = maximum(x, as_nd(eps))
 
         out = maker(x, func=torch.log)
 
@@ -233,7 +231,7 @@ def log(x: Array):
 # EXP
 # =====================================================================
 
-def exp(x:Array):
+def exp(x:TensorLike):
     d = get_dev(x) 
     def _fun(x):
         from ..array import as_nd
@@ -250,20 +248,20 @@ def exp(x:Array):
 # SQRT
 # =====================================================================
 
-def sqrt(x:Array):
+def sqrt(x:TensorLike):
     return x**(0.5)
 
 # =====================================================================
 # RECIPROCAL
 # =====================================================================
         
-def reciprocal(x:Array):
+def reciprocal(x:TensorLike):
     return 1/x
 
 # =====================================================================
 # Sign
 # =====================================================================
-def sign(x:Array):
+def sign(x:TensorLike):
     d = get_dev(x) 
     def _fun(x):
         from ..array import as_nd
@@ -282,13 +280,13 @@ def sign(x:Array):
 # POWER (x ** y)
 # =====================================================================
 
-def power(x: Array, y: Array):
+def power(x: TensorLike, y: TensorLike):
     """
     Elementwise power: ``x ** y``.
 
     Args:
-        x (Array): Base.
-        y (Array): Exponent.
+        x (TensorLike): Base.
+        y (TensorLike): Exponent.
 
     Returns:
         A: Result of ``x ** y``.
@@ -321,12 +319,12 @@ def power(x: Array, y: Array):
 # =====================================================================
 from .utils import unwrap
 
-def transpose(x: Array, axes=None):
+def transpose(x: TensorLike, axes=None):
     """
     Permute tensor axes.
 
     Args:
-        x (Array): Input tensor.
+        x (TensorLike): Input tensor.
         axes (tuple[int] | None): Axis permutation.
 
     Returns:
@@ -356,7 +354,7 @@ def transpose(x: Array, axes=None):
 # MATMUL
 # =====================================================================
 
-def matmul(a: Array, b: Array):
+def matmul(a: TensorLike, b: TensorLike):
     """
     Matrix multiplication: ``a @ b``.
 
@@ -368,8 +366,8 @@ def matmul(a: Array, b: Array):
         • Batched matmul (… × M × K @ … × K × N)
 
     Args:
-        a (Array): Left operand.
-        b (Array): Right operand.
+        a (TensorLike): Left operand.
+        b (TensorLike): Right operand.
 
     Returns:
         A: The matrix product.

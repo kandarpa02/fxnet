@@ -7,8 +7,6 @@ from ..src.ndarray.base import array
 from ..src.ndarray.utils import astype
 from ..src._typing import Array
 from ..src.DType import DType, normalize_dtype
-from ..src.functions.xpy_utils import get_dev, device_shift
-from ..backend.backend import xp
 
 class Initializer(Protocol):
     def __call__(self, *args: Any, **kwds: Any) -> Any: ...
@@ -69,8 +67,8 @@ class RandomNormal(Initializer):
   def __call__(self, shape: Sequence[int], dtype:DType|str, key:Any=None) -> Array:
     # _key = rng_type(key)
 
-    m = np.asarray(self.mean, dtype=normalize_dtype(dtype))
-    s = np.asarray(self.stddev, dtype=normalize_dtype(dtype))
+    m = np.asarray(self.mean, dtype=normalize_dtype(dtype, True))
+    s = np.asarray(self.stddev, dtype=normalize_dtype(dtype, True))
 
     return array(m + s * np.random.randn(*shape), dtype=dtype)
 
@@ -112,11 +110,11 @@ class TruncatedNormal(Initializer):
     self.upper = upper
 
   def __call__(self, shape: Sequence[int], dtype: DType|str) -> Array:
-    m = np.asarray(self.mean, dtype=normalize_dtype(dtype))
-    s = np.asarray(self.stddev, dtype=normalize_dtype(dtype))
+    m = np.asarray(self.mean, dtype=normalize_dtype(dtype, True))
+    s = np.asarray(self.stddev, dtype=normalize_dtype(dtype, True))
 
 
-    is_complex = np.issubdtype(normalize_dtype(dtype), np.complexfloating)
+    is_complex = np.issubdtype(normalize_dtype(dtype, True), np.complexfloating)
     if is_complex:
       shape = [2, *shape]
     unscaled = truncated_normal(shape, self.mean, self.stddev, self.lower, self.upper)
@@ -216,7 +214,7 @@ class VarianceScaling(Initializer):
       stddev = np.sqrt(scale)
       # Adjust stddev for truncation.
       # Constant from scipy.stats.truncnorm.std(a=-2, b=2, loc=0., scale=1.)
-      distribution_stddev = np.asarray(.87962566103423978, dtype=normalize_dtype(dtype))
+      distribution_stddev = np.asarray(.87962566103423978, dtype=normalize_dtype(dtype, True))
       stddev = stddev / distribution_stddev
       return TruncatedNormal(stddev=stddev)(shape, dtype)
     elif self.distribution == 'normal':
@@ -312,8 +310,8 @@ class Identity(Initializer):
     if len(shape) < 2:
       raise ValueError('Identity initializer requires at least a 2D shape.')
 
-    eye = np.eye(shape[-2], shape[-1], dtype=normalize_dtype(dtype))
+    eye = np.eye(shape[-2], shape[-1], dtype=normalize_dtype(dtype, True))
     if eye.shape != shape:
       eye = np.broadcast_to(eye, shape)
-    gain = np.asarray(self.gain, normalize_dtype(dtype))
+    gain = np.asarray(self.gain, normalize_dtype(dtype, True))
     return array(gain * eye)

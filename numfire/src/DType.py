@@ -29,7 +29,7 @@ def dname(d):
 	dmap = {'float':float32, 'bool':bool_, 'int':int32}
 	return dmap.get(f, float32)
 
-def normalize_dtype(dtype) -> torch.dtype:
+def normalize_dtype(dtype, string=False) -> torch.dtype:
     if dtype is None:
         return None
     
@@ -39,17 +39,25 @@ def normalize_dtype(dtype) -> torch.dtype:
 
     # NumPy shorthand boolean
     if dtype == '?':
+        if string: 
+            return bool_.name
         return bool_.native()
 
     # If our abstract DType
     if isinstance(dtype, DType):
+        if string: 
+            return dtype.name
         return dtype.native()
     
     if isinstance(dtype, type):
+        if string: 
+            return dname(dtype).name
         return dname(dtype).native()
 
     # If string passed
     if isinstance(dtype, str):
+        if string: 
+            return getattr(torch, dtype).__repr__()
         return getattr(torch, dtype)
 
     raise TypeError(f"Invalid dtype: {dtype}")

@@ -1,7 +1,9 @@
 from ...backend import backend as b
 from ..base import MakeOP
-from .._typing import Array
+from .._typing import TensorLike
 from .xpy_utils import get_dev, module
+import torch
+from torch import zeros, arange, stack, meshgrid, broadcast_to, add
 
 def _to_tuple(v, dims):
     if isinstance(v, int):
@@ -11,213 +13,197 @@ def _to_tuple(v, dims):
 def normalize_padding(padding, x_shape, kernel_shape, stride, dilation):
     dims = len(kernel_shape)
 
+    # int symmetric
     if isinstance(padding, int):
-        return (padding,) * dims
+        return [(padding, padding)] * dims
+
+    # tuple / list
     if isinstance(padding, (tuple, list)):
-        return tuple(padding)
+        # tuple[int] symmetric
+        if all(isinstance(p, int) for p in padding):
+            if len(padding) != dims:
+                raise ValueError("Padding length must match kernel dims")
+            return [(p, p) for p in padding]
 
-    if not isinstance(padding, str):
-        raise ValueError("padding must be int/tuple/string")
+        # tuple[tuple] already normalized
+        if all(
+            isinstance(p, (tuple, list)) and len(p) == 2
+            for p in padding
+        ):
+            if len(padding) != dims:
+                raise ValueError("Padding length must match kernel dims")
+            return [tuple(p) for p in padding]
 
-    padding = padding.lower()
-    spatial = x_shape[2:]
+    # string modes
+    if isinstance(padding, str):
+        padding = padding.lower()
+        spatial = x_shape[2:]
 
-    if padding == "valid":
-        return (0,) * dims
+        if padding == "valid":
+            return [(0, 0)] * dims
 
-    if padding == "same":
-        pads = []
-        for i in range(dims):
-            in_dim = spatial[i]
-            k = kernel_shape[i]
-            d = dilation[i]
-            s = stride[i]
+        if padding == "same":
+            pads = []
+            for i in range(dims):
+                eff_k = dilation[i] * (kernel_shape[i] - 1) + 1
+                out = (spatial[i] + stride[i] - 1) // stride[i]
+                total = max(0, (out - 1) * stride[i] + eff_k - spatial[i])
+                l = total // 2
+                r = total - l
+                pads.append((l, r))
+            return pads
 
-            eff_k = d * (k - 1) + 1
-            out_dim = (in_dim + s - 1) // s
-            total = max(0, (out_dim - 1) * s + eff_k - in_dim)
-            pads.append(total // 2)
-        return tuple(pads)
+        if padding == "full":
+            return [
+                (dilation[i] * (kernel_shape[i] - 1),) * 2
+                for i in range(dims)
+            ]
 
-    if padding == "full":
-        return tuple(dilation[i] * (kernel_shape[i] - 1) for i in range(dims))
-
-    raise ValueError(f"Unknown padding mode: {padding}")
-
-
-def im2col(x:Array, kernel_shape, stride, padding, dilation):
-	d = get_dev(x)
-	mod = module(d)
-	pad = mod.pad
-	arange = mod.arange
-	stack = mod.stack
-	meshgrid = mod.meshgrid
-	broadcast_to = mod.broadcast_to
-
-	dims = len(kernel_shape)
-	kernel_shape = tuple(kernel_shape)
-	stride = tuple(stride)
-	dilation = tuple(dilation)
-	padding = tuple(padding)
-		
-	def fun(_x):
-		x =  getattr(_x, "__backend_buffer__", _x)
-		N, C = x.shape[:2]
-		spatial = x.shape[2:]
-		dims = len(spatial)
-
-		pad_width = [(0, 0), (0, 0)] + [(p, p) for p in padding]
-		xpad = pad(x, pad_width)
-
-		out_shape = [
-			(spatial[i] + 2 * padding[i]
-			- dilation[i] * (kernel_shape[i] - 1) - 1) // stride[i] + 1
-			for i in range(dims)
-		]
-
-		# kernel offsets
-		k_list = [arange(kernel_shape[i]) * dilation[i] for i in range(dims)]
-		k_grid = stack(meshgrid(*k_list, indexing="ij"), axis=0)
-		k_grid = k_grid.reshape(dims, -1, 1)  # (dims, K, 1)
-
-		# window offsets
-		w_list = [arange(out_shape[i]) * stride[i] for i in range(dims)]
-		w_grid = stack(meshgrid(*w_list, indexing="ij"), axis=0)
-		w_grid = w_grid.reshape(dims, 1, -1)  # (dims, 1, O)
-
-		idx = k_grid + w_grid  # (dims, K, O)
-
-		K_total = idx.shape[1]
-		O_total = idx.shape[2]
-
-		# broadcast indices
-		N_idx = arange(N).reshape(N, 1, 1, 1)
-		C_idx = arange(C).reshape(1, C, 1, 1)
-
-		N_idx = broadcast_to(N_idx, (N, C, K_total, O_total))
-		C_idx = broadcast_to(C_idx, (N, C, K_total, O_total))
-
-		full_idx = [N_idx, C_idx]
-		for d in range(dims):
-			full_idx.append(
-				broadcast_to(idx[d][None, None, :, :],
-								(N, C, K_total, O_total))
-			)
-
-		patches = xpad[tuple(full_idx)]  # (N, C, K, O)
-		cols = patches.reshape(N, C * K_total, O_total)
-
-		def grad_fn(g):
-			return col2im( 
-				g,
-                x_shape=x.shape,
-				kernel_shape=kernel_shape,
-				stride=stride,
-				padding=padding,
-				dilation=dilation,
-                out_shape= out_shape
-			),
-
-		return (cols, out_shape), grad_fn
-	
-	return MakeOP(fun)(x)
+    raise ValueError(f"Invalid padding: {padding}")
 
 
+def apply_padding(x, padding):
+    pad = []
+    for p in reversed(padding):
+        if isinstance(p, (tuple, list)):
+            pad.extend(p)
+        else:
+            pad.extend([p, p])
+    return torch.nn.functional.pad(x, pad)
+
+import torch
+import torch.nn.functional as F
 from ..base import MakeOP
-from .xpy_utils import get_dev, module
+from .._typing import TensorLike
+
+
+def im2col(x: TensorLike, kernel_shape, stride, padding, dilation):
+    dims = x.ndim-1 #type:ignore
+    kernel_shape = _to_tuple(kernel_shape, dims)
+    stride = _to_tuple(stride, dims)
+    dilation = _to_tuple(dilation, dims)
+
+    # padding = [(l, r), ...] → torch wants left padding only
+    _padding = tuple(p[0] for p in padding)
+
+    def fun(_x):
+        from ..array import as_nd
+        x = getattr(_x, "__backend_buffer__", _x)
+
+        with torch.no_grad():
+            cols = F.unfold(
+                x,
+                kernel_size=kernel_shape,
+                dilation=dilation,
+                padding=_padding,
+                stride=stride,
+            )
+
+        # infer out_shape (same as torch does)
+        # N, CK, L = cols.shape
+        # C = x.shape[1]
+        # spatial = x.shape[2:]
+        # dims = len(spatial)
+
+
+        # out_shape = []
+        # # print('L', L)
+        # rem = L
+        # for i in reversed(range(dims)):
+        #     out_i = (
+        #         (spatial[i]
+        #          + 2 * _padding[i]
+        #          - dilation[i] * (kernel_shape[i] - 1) - 1)
+        #         // stride[i] + 1
+        #     )
+        #     out_shape.insert(0, out_i)
+        #     rem //= out_i
+
+        # assert rem == 1, (
+        #     f"im2col shape mismatch: inferred out_shape={out_shape}, "
+        #     f"but unfold produced L={L}"
+        # )
+
+        def grad_fn(g):
+            return (
+                col2im(
+                    g,
+                    x_shape=x.shape,
+                    kernel_shape=kernel_shape,
+                    stride=stride,
+                    padding=padding,
+                    dilation=dilation,
+                ),
+            )
+
+        return as_nd(cols), (as_nd(x),), grad_fn
+
+    return MakeOP(fun)(x)
+
+def get_out_shape(image, cols, kernel_shape, stride, padding, dilation):
+    N, CK, L = cols.shape
+    C = image.shape[1]
+    spatial = image.shape[2:]
+    dims = len(spatial)
+    kernel_shape = _to_tuple(kernel_shape, dims)
+    stride = _to_tuple(stride, dims)
+    dilation = _to_tuple(dilation, dims)
+
+    if isinstance(padding, str):
+        padding = normalize_padding(padding, image.shape, kernel_shape, stride, dilation)
+    _padding = tuple(p[0] for p in padding)
+
+    out_shape = []
+    rem = L
+    for i in reversed(range(dims)):
+        out_i = (
+            (spatial[i]
+                + 2 * _padding[i]
+                - dilation[i] * (kernel_shape[i] - 1) - 1)
+            // stride[i] + 1
+        )
+        out_shape.insert(0, out_i)
+        rem //= out_i
+
+    assert rem == 1, (
+        f"im2col shape mismatch: inferred out_shape={out_shape}, "
+        f"but unfold produced L={L}"
+    )
+    return out_shape
 
 
 def col2im(
-    cols,
+    cols: TensorLike,
     x_shape,
     kernel_shape,
     stride,
     padding,
     dilation,
-    out_shape,
 ):
-    d = get_dev(cols)
-    mod = module(d)
+    dims = cols.ndim-1
+    kernel_shape = _to_tuple(kernel_shape, dims)
+    stride = _to_tuple(stride, dims)
+    dilation = _to_tuple(dilation, dims)
 
-    zeros = mod.zeros
-    arange = mod.arange
-    stack = mod.stack
-    meshgrid = mod.meshgrid
-    broadcast_to = mod.broadcast_to
-    add = mod.add
-
-    kernel_shape = tuple(kernel_shape)
-    stride = tuple(stride)
-    dilation = tuple(dilation)
-    padding = tuple(padding)
-
-    dims = len(kernel_shape)
+    torch_padding = tuple(p[0] for p in padding)
+    output_size = x_shape[2:]
 
     def fun(_cols):
+        from ..array import as_nd
         cols = getattr(_cols, "__backend_buffer__", _cols)
 
-        N, C = x_shape[:2]
-        spatial = x_shape[2:]
-
-        padded_shape = (
-            N,
-            C,
-            *[spatial[i] + 2 * padding[i] for i in range(dims)],
-        )
-        xpad = zeros(padded_shape, dtype=cols.dtype)
-
-        # reshape cols -> (N, C, K, O)
-        K = 1
-        for k in kernel_shape:
-            K *= k
-        O = 1
-        for o in out_shape:
-            O *= o
-
-        cols_rs = cols.reshape(N, C, K, O)
-
-        # kernel offsets
-        k_list = [arange(kernel_shape[i]) * dilation[i] for i in range(dims)]
-        k_grid = stack(meshgrid(*k_list, indexing="ij"), axis=0)
-        k_grid = k_grid.reshape(dims, K, 1)
-
-        # output offsets
-        o_list = [arange(out_shape[i]) * stride[i] for i in range(dims)]
-        o_grid = stack(meshgrid(*o_list, indexing="ij"), axis=0)
-        o_grid = o_grid.reshape(dims, 1, O)
-
-        idx = k_grid + o_grid  # (dims, K, O)
-
-        # broadcast batch/channel indices
-        N_idx = arange(N).reshape(N, 1, 1, 1)
-        C_idx = arange(C).reshape(1, C, 1, 1)
-
-        N_idx = broadcast_to(N_idx, (N, C, K, O))
-        C_idx = broadcast_to(C_idx, (N, C, K, O))
-
-        full_idx = [N_idx, C_idx]
-        for i in range(dims):
-            full_idx.append(
-                broadcast_to(
-                    idx[i][None, None, :, :],
-                    (N, C, K, O),
-                )
+        with torch.no_grad():
+            dx = F.fold(
+                cols,
+                output_size=output_size,
+                kernel_size=kernel_shape,
+                dilation=dilation,
+                padding=torch_padding,
+                stride=stride,
             )
 
-        # SCATTER-ADD (this is the key)
-        add.at(xpad, tuple(full_idx), cols_rs)
-
-        # crop padding
-        slices = [slice(None), slice(None)]
-        for i in range(dims):
-            slices.append(slice(padding[i], padding[i] + spatial[i]))
-
-        dx = xpad[tuple(slices)]
-
-        # -----------------------
-        # backward = im2col
-        # -----------------------
         def grad_fn(g):
+
             return (
                 im2col(
                     g,
@@ -228,6 +214,6 @@ def col2im(
                 ),
             )
 
-        return dx, grad_fn
+        return as_nd(dx), (as_nd(cols),), grad_fn
 
     return MakeOP(fun)(cols)

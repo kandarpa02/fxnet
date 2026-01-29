@@ -1,4 +1,4 @@
-from .._typing import Array as A
+from .._typing import TensorLike
 from ..base import MakeOP
 from ...backend.backend import xp
 from .primitive_reduct import sum
@@ -6,6 +6,8 @@ from ..utils import broadcast_backward
 from .xpy_utils import get_dev, module
 from xpy import primitive
 from typing import Union
+import torch
+import numpy as np
 
 def unwrap(x):
     return getattr(x, '__backend_buffer__', x)
@@ -20,15 +22,11 @@ def maker(*args, func, nd=True):
 # Maximum
 # =====================================================================
 
-AType = Union[A, int, float, xp().ndarray]
 
-def maximum(x:AType, y:AType):
-    d = get_dev(x, y)
-
+def maximum(x:TensorLike, y:TensorLike):
     def _fun(x, y):
         from ..array import as_nd
-        _maximum = primitive(d, 'maximum')
-        out = as_nd(_maximum(x, y))
+        out = maker(x, y, func=torch.maximum)
 
         def grad_fn(g):
             gx = g * (x >= y)
@@ -46,13 +44,10 @@ def maximum(x:AType, y:AType):
 # Minimum
 # =====================================================================
 
-def minimum(x:AType, y:AType):
-    d = get_dev(x, y)
-
+def minimum(x:TensorLike, y:TensorLike):
     def _fun(x, y):
         from ..array import as_nd
-        _minimum = primitive(d, 'minimum')
-        out = as_nd(_minimum(x, y))
+        out = maker(x, y, func=torch.minimum)
 
         def grad_fn(g):
             gx = g * (x >= y)
@@ -70,13 +65,11 @@ def minimum(x:AType, y:AType):
 # where
 # =====================================================================
 
-def where(cond: AType, x: AType, y: AType):
-    d = get_dev(x, y)
+def where(cond: TensorLike, x: TensorLike, y: TensorLike):
 
     def _fun(cond, x, y):
         from ..array import as_nd
-        _wh = primitive(d, 'where')
-        out = as_nd(_wh(cond, x, y))
+        out = maker(cond, x, y, func=torch.where)
 
         def grad_fn(g):
             gx = where(cond, g, as_nd(0.))

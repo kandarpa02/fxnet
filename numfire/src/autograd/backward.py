@@ -7,6 +7,7 @@ from ...nn.base import Cell
 from typing import Dict, Any
 from ..tree_util import flatten_pytree, register_tree_node, unflatten_pytree
 from ...src.functions.xpy_utils import get_dev, module
+import torch
 
 # ================================================================
 # Helper functions
@@ -20,7 +21,6 @@ def is_leaf(x):
         return getattr(x, "train", False)
     return False
 
-
 def expand_cell(x):
     if isinstance(x, Cell):
         return list(x.trainable_parameters())
@@ -29,18 +29,14 @@ def expand_cell(x):
 def _extract_np(x):
     return x.__backend_buffer__ if is_leaf(x) else x
 
-
 def _id(x):
     return id(x.__backend_buffer__) if is_leaf(x) else id(x) #previous, works
-    # return x.id if is_leaf(x) else id(x) #new, bug
 
 def _zeros_like(x):
-    d = get_dev(x)
-    return module(d).zeros_like(_extract_np(x))
+    return torch.zeros_like(_extract_np(x))
 
 def _ones_like(x):
-    d = get_dev(x)
-    return module(d).ones_like(_extract_np(x))
+    return torch.ones_like(_extract_np(x))
 
 def norm_tuple(tpl):
     store = []

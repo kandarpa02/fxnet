@@ -2,51 +2,28 @@ from ...backend import backend as b
 from ...src.DType import DType, normalize_dtype
 from typing import Optional, Any
 from ..functions.xpy_utils import module, get_dev
-
-def ones(shape, dtype=None, device:Any=None):
-    dtype = normalize_dtype(dtype)
-    from ..array import NDarray
-    if device is not None:
-        return NDarray(module(device).ones(shape=shape, dtype=dtype))
-    return NDarray(b.xp().ones(shape, dtype))
-
-def zeros(shape, dtype=None, device:Any=None):
-    dtype = normalize_dtype(dtype)
-    from ..array import NDarray
-    if device is not None:
-        return NDarray(module(device).zeros(shape=shape, dtype=dtype))
-    return NDarray(b.xp().zeros(shape, dtype))
+from torch import ones, ones_like, zeros, zeros_like
+import torch
 
 def full(shape, value, dtype=None, device:Any=None):
     dtype = normalize_dtype(dtype)
     from ..array import NDarray
-    if device is not None:
-        return NDarray(module(device).full(shape=shape, fill_value=value, dtype=dtype))
-    return NDarray(b.xp().full(shape=shape, fill_value=value, dtype=dtype))
-
-def ones_like(_data, dtype=None, device:Any=None):
-    dtype = normalize_dtype(dtype)
-    from ..array import NDarray
-    if device is not None:
-        return NDarray(module(device).ones_like(getattr(_data, '__backend_buffer__', _data), dtype=dtype))
-    d = get_dev(_data)
-    return NDarray(module(d).ones_like(getattr(_data, '__backend_buffer__', _data), dtype=dtype))
-
-def zeros_like(_data, dtype=None, device:Any=None):
-    dtype = normalize_dtype(dtype)
-    from ..array import NDarray
-    if device is not None:
-        return NDarray(module(device).zeros_like(getattr(_data, '__backend_buffer__', _data), dtype=dtype))
-    d = get_dev(_data)
-    return NDarray(module(d).zeros_like(getattr(_data, '__backend_buffer__', _data), dtype=dtype))
+    return NDarray(torch.full(shape, value, dtype=dtype, device=device))
 
 def full_like(_data, value, dtype=None, device:Any=None):
-    dtype = normalize_dtype(dtype)
-    from ..array import NDarray
-    if device is not None:
-        return NDarray(module(device).full_like(getattr(_data, '__backend_buffer__', _data), fill_value=value, dtype=dtype))
-    d = get_dev(_data)
-    return NDarray(module(d).zeros_like(getattr(_data, '__backend_buffer__', _data), dtype=dtype))
+    return full(_data.shape, value=value, dtype=dtype, device=device)
+
+def ones(shape, dtype=None, device:Any=None):
+    return full(shape, 1.0, dtype=dtype, device=device)
+
+def zeros(shape, dtype=None, device:Any=None):
+    return full(shape, 0.0, dtype=dtype, device=device)
+
+def ones_like(_data, dtype=None, device:Any=None):
+    return full(_data.shape, 1.0, dtype=dtype, device=device)
+
+def zeros_like(_data, dtype=None, device:Any=None):
+    return full(_data.shape, 0.0, dtype=dtype, device=device)
 
 def arange(start,
     stop = None,

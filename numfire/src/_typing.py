@@ -1,6 +1,12 @@
 from __future__ import annotations
 from typing import Protocol, TypeVar, runtime_checkable, Any, Callable, Union
 from numpy import ndarray
+from torch import Tensor
+from numpy.typing import ArrayLike
+
+
+TensorLike = Union["Array", "Tensor", "ArrayLike"]
+
 T = TypeVar("T", bound="Array")
 
 class DType:

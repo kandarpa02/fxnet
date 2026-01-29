@@ -21,3 +21,8 @@ from . import optimizers
 from .src.ndarray.utils import astype
 # from .src.eager_fusion import fuse
 from .src.functions.xpy_utils import device_shift, device
+
+
+from .src.ndarray.base import constant
+from .src.ndarray.array_creation import ones, ones_like, zeros, zeros_like, full, full_like
+from .src.ndarray.array_transformation import one_hot

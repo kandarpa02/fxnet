@@ -1,7 +1,8 @@
 import numpy as np
 from typing import Callable
+import torch
 
-def broadcast_backward(grad: np.ndarray, x_shape: tuple) -> np.ndarray:
+def broadcast_backward(grad: torch.Tensor, x_shape: tuple) -> torch.Tensor:
     # Remove leading dims added by broadcasting
     from .functions.primitive_reduct import sum
     while len(grad.shape) > len(x_shape):
