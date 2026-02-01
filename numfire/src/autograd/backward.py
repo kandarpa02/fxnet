@@ -52,7 +52,88 @@ def norm_tuple(tpl):
 # BACKWARD CORE (internal)
 # ================================================================
 def _backward(fun, original_args, diff_leaves):
-    """
+    # ------------------------------------------------------------
+    # Forward pass (trace)
+    # ------------------------------------------------------------
+    with tape():
+        _out = fun(*original_args)
+        out = _out[0] if isinstance(_out, (tuple, list)) else _out
+
+    tape_records = TAPE_STACK.pop() if TAPE_STACK else []
+
+    # ------------------------------------------------------------
+    # Gradient storage
+    # ------------------------------------------------------------
+    grads = {
+        _id(out): _ones_like(out)
+    }
+
+    # ------------------------------------------------------------
+    # Reverse pass
+    # ------------------------------------------------------------
+    for node in reversed(tape_records):
+
+        out_id = _id(node.out)
+        g = grads.get(out_id)
+        if g is None:
+            continue
+
+        # grad_fn may return:
+        #   single grad
+        #   tuple of grads
+        raw_parent_grads = norm_tuple((node.grad_fn(g),))
+
+        # Accumulate only into trainable leaves
+        for parent, pg in zip(node.parents, raw_parent_grads):
+            if pg is None or not is_leaf(parent):
+                continue
+
+            pid = _id(parent)
+            if pid in grads:
+                grads[pid] += pg
+            else:
+                grads[pid] = pg
+                
+    for node in tape_records:
+        node.parents = None
+        node.grad_fn = None
+        node.out = None
+
+    tape_records.clear()
+
+    return _out, grads
+
+
+# ================================================================
+# PUBLIC API: grad()
+# ================================================================
+def grad(fun):
+    def wrapped(*args):
+        expanded_args = []
+        for a in args:
+            repl = expand_cell(a)
+            expanded_args.append(repl if repl is not None else a)
+
+        leaves, treedef = flatten_pytree(expanded_args)
+        diff_leaves = [x for x in leaves if is_leaf(x)]
+
+        out, gdict = _backward(fun, args, diff_leaves)
+
+        flat_grads = []
+        for leaf in leaves:
+            if is_leaf(leaf):
+                gid = _id(leaf)
+                flat_grads.append(gdict.get(gid, _zeros_like(leaf)))
+            else:
+                flat_grads.append(None)
+
+        grads_tree = unflatten_pytree(flat_grads, treedef)
+
+        return grads_tree[0] if len(args) == 1 else grads_tree
+
+    return wrapped
+
+backwar_doc =     """
     Execute a function under tracing, build a tape of operations, and
     perform a full reverse-mode automatic differentiation pass.
 
@@ -106,65 +187,8 @@ def _backward(fun, original_args, diff_leaves):
     tuple
         (output_of_fun, gradient_dict)
     """
-    # ------------------------------------------------------------
-    # Forward pass (trace)
-    # ------------------------------------------------------------
-    with tape():
-        _out = fun(*original_args)
-        out = _out[0] if isinstance(_out, (tuple, list)) else _out
 
-    tape_records = TAPE_STACK.pop() if TAPE_STACK else []
-
-    # ------------------------------------------------------------
-    # Gradient storage
-    # ------------------------------------------------------------
-    grads = {
-        _id(out): _ones_like(out)
-    }
-
-    # ------------------------------------------------------------
-    # Reverse pass
-    # ------------------------------------------------------------
-    for node in reversed(tape_records):
-
-        out_id = _id(node.out)
-        g = grads.get(out_id)
-        if g is None:
-            continue
-
-        # grad_fn may return:
-        #   single grad
-        #   tuple of grads
-        raw_parent_grads = norm_tuple((node.grad_fn(g),))
-
-        # Accumulate only into trainable leaves
-        for parent, pg in zip(node.parents, raw_parent_grads):
-            if pg is None or not is_leaf(parent):
-                continue
-
-            pid = _id(parent)
-            if pid in grads:
-                grads[pid] += pg
-            else:
-                grads[pid] = pg
-                
-    for node in tape_records:
-        node.parents = None
-        node.grad_fn = None
-        node.out = None
-    # print('arg_ids', list(a.id for a in original_args))
-    # print(grads)
-
-    tape_records.clear()
-
-    return _out, grads
-
-
-# ================================================================
-# PUBLIC API: grad()
-# ================================================================
-def grad(fun):
-    """
+grad_doc =     """
     Transform a function into one that returns gradients w.r.t. its arguments.
 
     This is the FakeTensor analog of:
@@ -205,90 +229,3 @@ def grad(fun):
     Callable
         A function returning gradients matching the structure of input args.
     """
-    def wrapped(*args):
-        expanded_args = []
-        for a in args:
-            repl = expand_cell(a)
-            expanded_args.append(repl if repl is not None else a)
-
-        leaves, treedef = flatten_pytree(expanded_args)
-        diff_leaves = [x for x in leaves if is_leaf(x)]
-
-        out, gdict = _backward(fun, args, diff_leaves)
-
-        flat_grads = []
-        for leaf in leaves:
-            if is_leaf(leaf):
-                gid = _id(leaf)
-                flat_grads.append(gdict.get(gid, _zeros_like(leaf)))
-            else:
-                flat_grads.append(None)
-
-        grads_tree = unflatten_pytree(flat_grads, treedef)
-
-        return grads_tree[0] if len(args) == 1 else grads_tree
-
-    return wrapped
-
-
-# ================================================================
-# PUBLIC API: value_and_grad()
-# ================================================================
-def value_and_grad(fun: Callable, argnum: Union[int, tuple, list, None] = None) -> Callable:
-    """
-    Create a function that returns both the value and gradient of fun(*args).
-
-    This matches:
-        • JAX:  jax.value_and_grad
-        • TF:   tape.gradient + returning value
-        • PyTorch: return loss, grads
-
-    Signature
-    ---------
-        wrapped = value_and_grad(fun)
-
-        y, dy = wrapped(x)
-
-    Behavior
-    --------
-    • Expands Cell arguments into parameters.
-    • Flattens the argument structure (pytree).
-    • Runs `_backward` to compute value + gradients.
-    • Reconstructs gradient pytrees matching the input args.
-
-    argnum (currently unused)
-    -------------------------
-    Present for API compatibility with JAX.  
-    FakeTensor currently differentiates w.r.t *all* leaves.
-    Support for selective argnums can be added easily.
-
-    Returns
-    -------
-    Callable
-        Function returning:
-            (fun(*args), gradients)
-    """
-    def wrapped(*args):
-        expanded_args = []
-        for a in args:
-            repl = expand_cell(a)
-            expanded_args.append(repl if repl is not None else a)
-
-        leaves, treedef = flatten_pytree(expanded_args)
-        diff_leaves = [x for x in leaves if is_leaf(x)]
-
-        out, gdict = _backward(fun, args, diff_leaves)
-
-        flat_grads = []
-        for leaf in leaves:
-            if is_leaf(leaf):
-                gid = _id(leaf)
-                flat_grads.append(gdict.get(gid, _zeros_like(leaf)))
-            else:
-                flat_grads.append(None)
-
-        grads_tree = unflatten_pytree(flat_grads, treedef)
-
-        return out, grads_tree[0] if len(args) == 1 else grads_tree
-
-    return wrapped

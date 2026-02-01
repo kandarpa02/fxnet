@@ -58,7 +58,12 @@ def as_ndarray(x):
     if isinstance(x, np.generic):
         return tensor(x, device=device).detach()
 
-    if isinstance(x, (int, float, bool, list)):
+    if isinstance(x, (int, float, bool)):
+        return tensor(x, device=device).detach()
+    
+    if isinstance(x, (list, tuple)):
+        if any(isinstance(_, NDarray) for _ in x):
+            return tensor(tuple(_.__backend_buffer__ for _ in x), device=device).detach()
         return tensor(x, device=device).detach()
     
     if isinstance(x, torch.Tensor):
