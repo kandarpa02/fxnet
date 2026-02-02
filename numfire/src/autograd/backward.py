@@ -52,25 +52,17 @@ def norm_tuple(tpl):
 # BACKWARD CORE (internal)
 # ================================================================
 def _backward(fun, original_args, diff_leaves):
-    # ------------------------------------------------------------
-    # Forward pass (trace)
-    # ------------------------------------------------------------
     with tape():
-        _out = fun(*original_args)
-        out = _out[0] if isinstance(_out, (tuple, list)) else _out
+        out = fun(*original_args)
+        if isinstance(out, (tuple, list)):
+            out = out[0]
 
     tape_records = TAPE_STACK.pop() if TAPE_STACK else []
 
-    # ------------------------------------------------------------
-    # Gradient storage
-    # ------------------------------------------------------------
     grads = {
         _id(out): _ones_like(out)
     }
 
-    # ------------------------------------------------------------
-    # Reverse pass
-    # ------------------------------------------------------------
     for node in reversed(tape_records):
 
         out_id = _id(node.out)
@@ -78,22 +70,30 @@ def _backward(fun, original_args, diff_leaves):
         if g is None:
             continue
 
-        # grad_fn may return:
-        #   single grad
-        #   tuple of grads
-        raw_parent_grads = norm_tuple((node.grad_fn(g),))
+        parent_grads = node.grad_fn(g)
 
-        # Accumulate only into trainable leaves
-        for parent, pg in zip(node.parents, raw_parent_grads):
-            if pg is None or not is_leaf(parent):
+        # Ensure tuple
+        if not isinstance(parent_grads, tuple):
+            parent_grads = (parent_grads,)
+
+        assert len(parent_grads) == len(node.parents), (
+            f"grad_fn returned {len(parent_grads)} grads "
+            f"for {len(node.parents)} parents"
+        )
+
+        for parent, pg in zip(node.parents, parent_grads):
+            if pg is None:
                 continue
 
             pid = _id(parent)
             if pid in grads:
-                grads[pid] += pg
+                grads[pid] = grads[pid] + pg
             else:
                 grads[pid] = pg
-                
+
+    # ------------------------------------------------------------
+    # Tape cleanup (avoid leaks)
+    # ------------------------------------------------------------
     for node in tape_records:
         node.parents = None
         node.grad_fn = None
@@ -101,7 +101,8 @@ def _backward(fun, original_args, diff_leaves):
 
     tape_records.clear()
 
-    return _out, grads
+    return out, grads
+
 
 
 # ================================================================
@@ -133,7 +134,7 @@ def grad(fun):
 
     return wrapped
 
-backwar_doc =     """
+backward_doc =     """
     Execute a function under tracing, build a tape of operations, and
     perform a full reverse-mode automatic differentiation pass.
 

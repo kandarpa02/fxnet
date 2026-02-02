@@ -3,15 +3,10 @@ from ..backend.backend import xp
 import numpy as np
 import torch
 from torch import tensor, dtype
-from .functions import *
-from .functions.comparison import (
-    equal, not_equal, 
-    greater, greater_equal, 
-    less, less_equal, 
-    logical_not, logical_and, 
-    logical_or, logical_xor, 
-    logical_all, logical_any
-    )
+# from .functions import *
+
+from ..src.primitives.wrapped_f import *
+from .core import Container
 
 from typing import Optional
 from typing import Union, NamedTuple
@@ -68,12 +63,14 @@ def as_ndarray(x):
     
     if isinstance(x, torch.Tensor):
         return x
+    if isinstance(x, Container):
+        return x.data
 
     raise TypeError(f"{type(x)} not supported as input")
 
 
 def as_nd(x):
-    return NDarray(x)
+    return x if isinstance(x, NDarray) else NDarray(x)
 
 class _AtIndexer:
     def __init__(self, x):
@@ -137,7 +134,10 @@ class NDarray(A):
         return self.__backend_buffer__.numel()
 
     def __len__(self):
-        return len(self.__backend_buffer__)
+        try:
+            return len(self.__backend_buffer__) 
+        except TypeError:
+            return 1
     
     def __hash__(self):
         return self.id   # identity-based hashing
@@ -155,8 +155,24 @@ class NDarray(A):
         """Allows NumPy to extract underlying data when needed."""
         return self.__backend_buffer__
     
-    def __tensor__(self):
+    def tensor(self):
         return self.__backend_buffer__
+    
+    @classmethod
+    def __torch_function__(cls, func, types, args=(), kwargs=None):
+        if kwargs is None:
+            kwargs = {}
+
+        # Only handle if our type is involved
+        if not any(issubclass(t, cls) for t in types):
+            return NotImplemented
+
+        new_args = [
+            a.__backend_buffer__ if isinstance(a, cls) else a
+            for a in args
+        ]
+
+        return func(*new_args, **kwargs)
 
     # @property
     # def __cuda_array_interface__(self):
@@ -180,7 +196,6 @@ class NDarray(A):
         return copied
 
     def astype(self, dtype:_Dtype):
-        from ..src.ndarray.utils import astype
         return astype(self, dtype=dtype)
     
     def __float__(self):
@@ -221,15 +236,15 @@ class NDarray(A):
         # return add(self, as_nd(other))
 
     def __sub__(self, other):
-        return subtract(self, as_nd(other).astype(self.dtype))
+        return sub(self, as_nd(other).astype(self.dtype))
         # return subtract(self, as_nd(other))
 
     def __mul__(self, other):
-        return multiply(self, as_nd(other).astype(self.dtype))
+        return mul(self, as_nd(other).astype(self.dtype))
         # return multiply(self, as_nd(other))
 
     def __truediv__(self, other):
-        return divide(self, as_nd(other).astype(self.dtype))
+        return div(self, as_nd(other).astype(self.dtype))
 
     def __pow__(self, other):
         return power(self, as_nd(other).astype(self.dtype))
@@ -257,7 +272,7 @@ class NDarray(A):
 
     @property
     def T(self):
-        return transpose(self)
+        return transpose(self, None)
     # -------------------------
     # Binary ops (reverse)
     # -------------------------
@@ -265,13 +280,13 @@ class NDarray(A):
         return add(as_nd(other), self)
 
     def __rsub__(self, other):
-        return subtract(as_nd(other), self)
+        return sub(as_nd(other), self)
 
     def __rmul__(self, other):
-        return multiply(as_nd(other), self)
+        return mul(as_nd(other), self)
 
     def __rtruediv__(self, other):
-        return divide(as_nd(other), self)
+        return div(as_nd(other), self)
 
     def __rpow__(self, other):
         return power(as_nd(other), self)

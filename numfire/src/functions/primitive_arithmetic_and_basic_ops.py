@@ -60,9 +60,9 @@ def add(x: TensorLike, y: TensorLike):
         def grad_fn(g):
             g1 = broadcast_backward(g, x.shape)
             g2 = broadcast_backward(g, y.shape)
-            return g1, g2
+            return as_nd(g1), as_nd(g2)
 
-        return out, (as_nd(x), as_nd(y)), grad_fn
+        return out, grad_fn
 
     return MakeOP(_fun)(x, y)
 
@@ -92,7 +92,7 @@ def subtract(x: TensorLike, y: TensorLike):
             g2 = broadcast_backward(negative(g), y.shape)
             return g1, g2
 
-        return out, (as_nd(x), as_nd(y)), grad_fn
+        return out, grad_fn
 
     return MakeOP(_fun)(x, y)
 
@@ -120,7 +120,7 @@ def negative(x: TensorLike):
         def grad_fn(g):
             return neg(g),
 
-        return out, (as_nd(x),), grad_fn
+        return out, grad_fn
 
     return MakeOP(_fun)(x)
 
@@ -152,7 +152,7 @@ def multiply(x: TensorLike, y: TensorLike):
             g2 = broadcast_backward(mul(g, x), y.shape)
             return g1, g2
 
-        return out, (as_nd(x), as_nd(y)), grad_fn
+        return out, grad_fn
 
     return MakeOP(_fun)(x, y)
 
@@ -188,7 +188,7 @@ def divide(x: TensorLike, y: TensorLike):
             )
             return g1, g2
 
-        return out, (as_nd(x), as_nd(y)), grad_fn
+        return out, grad_fn
 
     return MakeOP(_fun)(x, y)
 
