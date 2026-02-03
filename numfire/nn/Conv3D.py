@@ -1,4 +1,4 @@
-from .base import Cell
+from .base import Module
 from .parameters import Variable
 from .initializers import VarianceScaling, Constant
 from ..src.DType import float32
@@ -11,7 +11,7 @@ def _ntuple(n, x):
         return x
     return (x,) * n
 
-class Conv3D(Cell):
+class Conv3D(Module):
     def __init__(
         self,
         out_channels: int,

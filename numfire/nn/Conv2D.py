@@ -1,5 +1,5 @@
-from .base import Cell
-from .parameters import Variable
+from .base import Module
+from ..src.tensor_value import Variable
 from .initializers import VarianceScaling, Constant
 from ..src.DType import float32
 from ..src.functions.primitive_arithmetic_and_basic_ops import matmul
@@ -11,7 +11,7 @@ def _ntuple(n, x):
         return x
     return (x,) * n
 
-class Conv2D(Cell):
+class Conv2D(Module):
     def __init__(
         self,
         out_channels: int,

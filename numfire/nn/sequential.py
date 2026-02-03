@@ -1,17 +1,17 @@
-from .base import Cell
+from .base import Module
 from typing import Protocol, Any, Union, Sequence, Callable
 
 
 
-class Sequential(Cell):
-    def __init__(self, layers:Sequence[Cell|Callable], name: str | None = None):
+class Sequential(Module):
+    def __init__(self, layers:Sequence[Module|Callable], name: str | None = None):
         super().__init__(name)
         self.layers = layers
         self.__glue_layers__()
     
     def __glue_layers__(self):
         for i, l in enumerate(self.layers):
-            name = l.__class__.__name__ if isinstance(l, Cell) else l.__name__
+            name = l.__class__.__name__ if isinstance(l, Module) else l.__name__
             setattr(self, f"{name}{i}", l)
 
     def call(self, *args):
@@ -40,8 +40,8 @@ class Sequential(Cell):
     
     Parameters
     ----------
-    layers : Sequence[Cell | Callable]
-        A sequence of modules (inheriting from `Cell`) or plain callables
+    layers : Sequence[Module | Callable]
+        A sequence of modules (inheriting from `Module`) or plain callables
         (like activation functions) to apply in order.
 
     Notes

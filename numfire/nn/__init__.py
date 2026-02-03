@@ -1,8 +1,7 @@
-from .base import Cell
-from .parameters import Variable, Parameter
+from .base import Module
 from .initializers import Constant, TruncatedNormal, VarianceScaling, Orthogonal, Identity, UniformScaling, RandomNormal, RandomUniform
 from .sequential import Sequential
-from .Linear import Dense, Dense_
+from .Linear import Dense
 from .Conv1D import Conv1D
 from .Conv2D import Conv2D 
 from .Conv3D import Conv3D

@@ -1,5 +1,5 @@
-from .base import Cell
-from .parameters import Variable
+from .base import Module
+from ..src.tensor_value import Variable
 from .initializers import VarianceScaling, Constant
 from ..src.DType import float32
 from ..src.functions.primitive_arithmetic_and_basic_ops import matmul
@@ -7,7 +7,7 @@ from ..src.functions.convolution import convolution
 from typing import Callable
 
 
-class Conv1D(Cell):
+class Conv1D(Module):
     def __init__(
         self,
         out_channels: int,

@@ -1,16 +1,16 @@
 from typing import Any, Generator
-from .parameters import Variable, Parameter
+from ..src.tensor_value import Variable
 from ..src.tree_util import register_tree_node
 from ..backend import backend as b
 
 lib = b.xp()
 
-class Cell:
+class Module:
     """Base class for all neural network components in FakeTensor.
 
-    A `Cell` is the fundamental building block of the FakeTensor neural
+    A `Module` is the fundamental building block of the FakeTensor neural
     network API. It is conceptually similar to `tf.keras.layers.Layer`.
-    A `Cell`:
+    A `Module`:
 
     - manages hierarchical subcells (modules)
     - registers trainable `Variable` parameters
@@ -31,15 +31,15 @@ class Cell:
             defined directly in this cell (not including child cells).
 
     Notes:
-        - Assigning a `Variable` or another `Cell` to an attribute automatically
+        - Assigning a `Variable` or another `Module` to an attribute automatically
           updates its hierarchical name (e.g., `"MLP.layer1.weight"`).
-        - Calling a `Cell` (via `__call__`) forwards directly to `call()`.
+        - Calling a `Module` (via `__call__`) forwards directly to `call()`.
         - `parameters()` returns all parameters recursively.
         - `trainable_parameters()` filters only parameters with `train=True`.
 
     Example:
         ```python
-        class Linear(Cell):
+        class Linear(Module):
             def __init__(self, in_dim, out_dim):
                 super().__init__()
                 self.w = Variable(randn(in_dim, out_dim), name="w")
@@ -55,12 +55,12 @@ class Cell:
 
     def __init__(self, name: str|None = None):   #type:ignore
         super().__setattr__("_cell_name", name if name is not None else self.__class__.__name__)
-        super().__setattr__("local_params", Parameter())
+        super().__setattr__("local_params", list())
 
     def __repr__(self):
         body = f"{self.__class__.__name__}("
         for k, mod in self.__dict__.items():
-            if isinstance(mod, Cell):
+            if isinstance(mod, Module):
                 body += f"\n   ({k}): {repr(mod)}"
             
             else:
@@ -74,12 +74,12 @@ class Cell:
         return f"{self._cell_name}.{child_name}" #type:ignore
 
     def _update_param_names(self):
-        """Rename parameters after parent attaches this Cell."""
+        """Rename parameters after parent attaches this Module."""
         for name, v in self.__dict__.items():
             if isinstance(v, Variable):
                 v.name = f"{self._cell_name}.{name}" #type:ignore
 
-            elif isinstance(v, Cell):
+            elif isinstance(v, Module):
                 v._cell_name = f"{self._cell_name}.{name}" #type:ignore
                 v._update_param_names()
 
@@ -89,7 +89,7 @@ class Cell:
         # --------------------------
         # Case: assigning submodule
         # --------------------------
-        if isinstance(value, Cell):
+        if isinstance(value, Module):
             # assign correct hierarchical name
             if self._cell_name:  #type:ignore
                 value._cell_name = f"{self._cell_name}.{name}" #type:ignore
@@ -112,7 +112,7 @@ class Cell:
             self.local_params.append(value)  #type:ignore
 
     # Parameter recursion
-    def parameters(self)->Parameter:
+    def parameters(self)->tuple[Variable]:
         """Returns all parameters (trainable + non-trainable) in this cell.
 
         This includes parameters defined in:
@@ -128,12 +128,12 @@ class Cell:
                 yield p 
 
             for v in self.__dict__.values():
-                if isinstance(v, Cell):
+                if isinstance(v, Module):
                     yield from v.parameters()
 
         return tuple(gather())
 
-    def trainable_parameters(self)->Parameter:
+    def trainable_parameters(self)->tuple[Variable]:
         """Returns all trainable parameters in this cell.
 
         A parameter is considered trainable if `param.train == True`.
@@ -149,7 +149,7 @@ class Cell:
                     pass
 
             for v in self.__dict__.values():
-                if isinstance(v, Cell):
+                if isinstance(v, Module):
                     yield from v.trainable_parameters()
 
         return tuple(gather())
@@ -209,18 +209,18 @@ class Cell:
             p.np = p.np.astype(dt)
         
         for v in self.__dict__.values():
-            if isinstance(v, Cell):
+            if isinstance(v, Module):
                 v.cast(dtype)
 
 
-def flatten(cell: Cell):
-    """PyTree flatten function for Cell.
+def flatten(cell: Module):
+    """PyTree flatten function for Module.
 
     Extracts Variables and subcells as leaves, and stores metadata
     describing their names.
 
     Returns:
-        leaves: A list of Variables and child Cells.
+        leaves: A list of Variables and child Modules.
         meta: A dictionary describing param and child attribute names.
     """
 
@@ -234,7 +234,7 @@ def flatten(cell: Cell):
         if isinstance(value, Variable):
             meta["param_names"].append(name)
             leaves.append(value)
-        elif isinstance(value, Cell):
+        elif isinstance(value, Module):
             meta["child_names"].append(name)
             leaves.append(value)
         # Ignore other attributes (buffers, flags, cache, etc.)
@@ -244,19 +244,19 @@ def flatten(cell: Cell):
 
 
 def unflatten(children, meta):
-    """PyTree unflatten function for Cell.
+    """PyTree unflatten function for Module.
 
-    Reconstructs a Cell from its flattened children and metadata.
+    Reconstructs a Module from its flattened children and metadata.
 
     Args:
-        children: List of leaves (Variables and Cells).
+        children: List of leaves (Variables and Modules).
         meta: Metadata dictionary produced during flattening.
 
     Returns:
-        A reconstructed `Cell` with restored structure.
+        A reconstructed `Module` with restored structure.
     """
     # Create an empty cell
-    new = Cell()
+    new = Module()
     it = iter(children)
 
     # restore params
@@ -270,8 +270,8 @@ def unflatten(children, meta):
     return new
 
 
-# Register Cell as pytree
-register_tree_node(Cell, flatten, unflatten)
+# Register Module as pytree
+register_tree_node(Module, flatten, unflatten)
 
 from typing import Sequence, Callable, Optional
 from contextlib import contextmanager
@@ -289,7 +289,7 @@ class _init_helper:
     def __exit__(self, *args):
         self.shape = None
     
-class Layer(Cell):
+class Layer(Module):
     def __init__(self, input_shape: Optional[Sequence|None]=None, name: str | None = None):
         super().__init__(name)
         if not input_shape is None:

@@ -1,4 +1,4 @@
-from .base import Cell
+from .base import Module
 from .parameters import Variable
 from .initializers import VarianceScaling, Constant
 from ..src.DType import float32, DType, normalize_dtype
@@ -9,7 +9,7 @@ from ..src.ndarray.array_creation import ones
 from ..src.functions.xpy_utils import device_shift
 import torch
 
-class Input(Cell):
+class Input(Module):
 	def __init__(self, input_shape:list[int]|int, dtype:DType=float32, device:str|None=None, name: str | None = None):
 		super().__init__(name)
 		_shape = input_shape if isinstance(input_shape, list|tuple) else list((input_shape,))
@@ -17,6 +17,6 @@ class Input(Cell):
 		if not device is None:
 			self._init_array = device_shift(self._init_array, device=device)
 
-	def call(self, model_instance:Cell):
+	def call(self, model_instance:Module):
 		_ = model_instance(self._init_array)
 		return model_instance
