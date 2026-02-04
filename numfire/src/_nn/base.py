@@ -1,9 +1,6 @@
 from typing import Any, Generator
-from ..src.tensor_value import Variable
-from ..src.tree_util import register_tree_node
-from ..backend import backend as b
-
-lib = b.xp()
+from ..tensor_value import Variable
+from ..tree_util import register_tree_node
 
 class Module:
     """Base class for all neural network components in FakeTensor.
@@ -274,10 +271,10 @@ def unflatten(children, meta):
 register_tree_node(Module, flatten, unflatten)
 
 from typing import Sequence, Callable, Optional
-from contextlib import contextmanager
-from ..src.array import NDarray
-from ..backend.backend import xp
-from ..src.tree_util import flatten_pytree
+# from contextlib import contextmanager
+# from ..src.array import NDarray
+# from ..backend.backend import xp
+# from ..src.tree_util import flatten_pytree
 
 class _init_helper:
     def __init__(self, shape) -> None:

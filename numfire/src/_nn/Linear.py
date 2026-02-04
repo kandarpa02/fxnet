@@ -1,9 +1,9 @@
 from typing import Sequence
 from .base import Module, Layer
-from ..src.tensor_value import Variable
+from ..tensor_value import Variable
 from .initializers import VarianceScaling, Constant
-from ..src.DType import float32
-from ..src.primitives.wrapped_f import matmul
+from ..DType import float32
+from ..primitives.wrapped_f import matmul
 
 class Dense(Module):
     def __init__(

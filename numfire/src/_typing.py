@@ -4,8 +4,7 @@ from numpy import ndarray
 from torch import Tensor
 from numpy.typing import ArrayLike
 
-
-TensorLike = Union["Array", "Tensor", "ArrayLike"]
+TensorLike = Union["Tensor", "ArrayLike"]
 
 T = TypeVar("T", bound="Array")
 

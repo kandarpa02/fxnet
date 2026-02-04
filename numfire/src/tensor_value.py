@@ -9,7 +9,12 @@ class TensorBox(torch.Tensor):
         default_device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         if isinstance(data, torch.Tensor|TensorBox):
             default_device = data.device
-        t = torch.as_tensor(data).to(dtype).detach()
+            
+        if isinstance(data, torch.Tensor):
+            t = data.detach().clone().to(dtype)
+        else:
+            t = torch.tensor(data, dtype=dtype, device=default_device)
+
         obj = torch.Tensor._make_subclass(cls, t, require_grad=False)
         setattr(obj, 'node', node)
         setattr(obj, 'trace_id', trace_id)

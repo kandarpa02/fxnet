@@ -3,10 +3,11 @@
 from collections.abc import Sequence
 from typing import Callable, Any, Protocol
 import numpy as np
-from ..src.ndarray.base import array
-from ..src.ndarray.utils import astype
-from ..src._typing import Array
-from ..src.DType import DType, normalize_dtype
+from ..usable_api import constant
+# from ...src.primitives.wrapped_f import astype
+from ...src._typing import Tensor, Tensor
+# from ...src.primitives.
+from ...src.DType import DType, normalize_dtype
 
 class Initializer(Protocol):
     def __call__(self, *args: Any, **kwds: Any) -> Any: ...
@@ -38,7 +39,7 @@ class Constant(Initializer):
   """Initializes with a constant."""
 
   def __init__(
-      self, constant: float | int | complex | np.ndarray | Array
+      self, constant: float | int | complex | np.ndarray | Tensor
   ):
     """Constructs a Constant initializer.
 
@@ -47,8 +48,8 @@ class Constant(Initializer):
     """
     self.constant = constant
 
-  def __call__(self, shape: Sequence[int], dtype: DType|str) -> Array:
-    return array(np.broadcast_to(np.asarray(self.constant), shape), dtype=dtype)
+  def __call__(self, shape: Sequence[int], dtype: DType|str) -> Tensor:
+    return constant(np.broadcast_to(np.asarray(self.constant), shape), dtype=dtype)
 
 
 class RandomNormal(Initializer):
@@ -64,13 +65,13 @@ class RandomNormal(Initializer):
     self.stddev = stddev
     self.mean = mean
 
-  def __call__(self, shape: Sequence[int], dtype:DType|str, key:Any=None) -> Array:
+  def __call__(self, shape: Sequence[int], dtype:DType|str, key:Any=None) -> Tensor:
     # _key = rng_type(key)
 
     m = np.asarray(self.mean, dtype=normalize_dtype(dtype, True))
     s = np.asarray(self.stddev, dtype=normalize_dtype(dtype, True))
 
-    return array(m + s * np.random.randn(*shape), dtype=dtype)
+    return constant(m + s * np.random.randn(*shape), dtype=dtype)
 
 def truncated_normal(shape, mean=0.0, std=1.0, low=-2.0, high=2.0):
     size = np.prod(shape)
@@ -90,10 +91,10 @@ class TruncatedNormal(Initializer):
   """Initializes by sampling from a truncated normal distribution."""
 
   def __init__(self,
-               stddev: float | Array = 1.,
-               mean: float | complex | Array = 0.0,
-               lower: float | Array = -2.0,
-               upper: float | Array = 2.0,
+               stddev: float | Tensor = 1.,
+               mean: float | complex | Tensor = 0.0,
+               lower: float | Tensor = -2.0,
+               upper: float | Tensor = 2.0,
                ):
     """Constructs a :class:`TruncatedNormal` initializer.
 
@@ -101,15 +102,15 @@ class TruncatedNormal(Initializer):
       stddev: The standard deviation parameter of the untruncated normal
         distribution.
       mean: The mean of the truncated normal distribution.
-      lower: Float or array representing the lower bound for truncation.
-      upper: Float or array representing the upper bound for truncation.
+      lower: Float or constant representing the lower bound for truncation.
+      upper: Float or constant representing the upper bound for truncation.
     """
     self.stddev = stddev
     self.mean = mean
     self.lower = lower
     self.upper = upper
 
-  def __call__(self, shape: Sequence[int], dtype: DType|str) -> Array:
+  def __call__(self, shape: Sequence[int], dtype: DType|str) -> Tensor:
     m = np.asarray(self.mean, dtype=normalize_dtype(dtype, True))
     s = np.asarray(self.stddev, dtype=normalize_dtype(dtype, True))
 
@@ -120,7 +121,7 @@ class TruncatedNormal(Initializer):
     unscaled = truncated_normal(shape, self.mean, self.stddev, self.lower, self.upper)
     if is_complex:
       unscaled = unscaled[0] + 1j * unscaled[1]
-    return array(s * unscaled + m, dtype=dtype)
+    return constant(s * unscaled + m, dtype=dtype)
 
 
 class RandomUniform(Initializer):
@@ -136,12 +137,12 @@ class RandomUniform(Initializer):
         self.minval = minval
         self.maxval = maxval
 
-    def __call__(self, shape: Sequence[int], dtype: DType|str) -> Array:
-        return array(np.random.uniform(self.minval, self.maxval, size=tuple(shape)), dtype=dtype)
+    def __call__(self, shape: Sequence[int], dtype: DType|str) -> Tensor:
+        return constant(np.random.uniform(self.minval, self.maxval, size=tuple(shape)), dtype=dtype)
 
 
 class VarianceScaling(Initializer):
-  """Initializer which adapts its scale to the shape of the initialized array.
+  """Initializer which adapts its scale to the shape of the initialized constant.
 
   The initializer first computes the scaling factor ``s = scale / n``, where n
   is:
@@ -200,7 +201,7 @@ class VarianceScaling(Initializer):
     self.distribution = distribution
     self.fan_in_axes = fan_in_axes
 
-  def __call__(self, shape: Sequence[int], dtype: DType|str) -> Array:
+  def __call__(self, shape: Sequence[int], dtype: DType|str) -> Tensor:
     scale = self.scale
     fan_in, fan_out = _compute_fans(shape, self.fan_in_axes)
     if self.mode == 'fan_in':
@@ -241,7 +242,7 @@ class UniformScaling(Initializer):
     """
     self.scale = scale
 
-  def __call__(self, shape: Sequence[int], dtype: DType|str) -> Array:
+  def __call__(self, shape: Sequence[int], dtype: DType|str) -> Tensor:
     input_size = np.prod(shape[:-1])
     max_val = np.sqrt(3 / input_size) * self.scale
     return RandomUniform(-max_val, max_val)(shape, dtype)
@@ -273,7 +274,7 @@ class Orthogonal(Initializer):
     self.scale = scale
     self.axis = axis
 
-  def __call__(self, shape: Sequence[int], dtype: DType|str) -> Array:
+  def __call__(self, shape: Sequence[int], dtype: DType|str) -> Tensor:
     # _key = rng_type(key)
     if len(shape) < 2:
       raise ValueError('Orthogonal initializer requires at least a 2D shape.')
@@ -288,7 +289,7 @@ class Orthogonal(Initializer):
       q_mat = q_mat.T
     q_mat = np.reshape(q_mat, (n_rows,) + tuple(np.delete(shape, self.axis)))
     q_mat = np.moveaxis(q_mat, 0, self.axis)
-    return array(self.scale * q_mat, dtype)
+    return constant(self.scale * q_mat, dtype)
 
 
 class Identity(Initializer):
@@ -297,7 +298,7 @@ class Identity(Initializer):
   Constructs a 2D identity matrix or batches of these.
   """
 
-  def __init__(self, gain: float | np.ndarray | Array = 1.0):
+  def __init__(self, gain: float | np.ndarray | Tensor = 1.0):
     """Constructs an :class:`Identity` initializer.
 
     Args:
@@ -305,7 +306,7 @@ class Identity(Initializer):
     """
     self.gain = gain
 
-  def __call__(self, shape: Sequence[int], dtype: DType|str) -> Array:
+  def __call__(self, shape: Sequence[int], dtype: DType|str) -> Tensor:
     shape = tuple(shape)
     if len(shape) < 2:
       raise ValueError('Identity initializer requires at least a 2D shape.')
@@ -314,4 +315,4 @@ class Identity(Initializer):
     if eye.shape != shape:
       eye = np.broadcast_to(eye, shape)
     gain = np.asarray(self.gain, normalize_dtype(dtype, True))
-    return array(gain * eye)
+    return constant(gain * eye)

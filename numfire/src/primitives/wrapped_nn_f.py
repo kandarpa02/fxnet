@@ -6,7 +6,7 @@ from .wrapped_f import matmul, add
 def linear(x, w, b=None):
     def func(x, w, b):
         y = matmul(x, w)
-        if b:
+        if b is not None:
             return add(y, b)
         return y
 

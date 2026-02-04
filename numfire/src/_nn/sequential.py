@@ -2,7 +2,6 @@ from .base import Module
 from typing import Protocol, Any, Union, Sequence, Callable
 
 
-
 class Sequential(Module):
     def __init__(self, layers:Sequence[Module|Callable], name: str | None = None):
         super().__init__(name)
