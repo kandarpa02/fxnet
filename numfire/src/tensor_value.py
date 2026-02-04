@@ -2,6 +2,7 @@ import torch
 import numfire.src.primitives as p
 from .DType import normalize_dtype, DType
 from ._typing import TensorLike
+from typing import overload, Any
 
 class TensorBox(torch.Tensor):
     def __new__(cls, data, node=None, trace_id=None, dtype=None):
@@ -73,9 +74,17 @@ defmethod('__matmul__',  lambda x, y: p.matmul(x, y))
 defmethod('__rmatmul__', lambda x, y: p.matmul(y, x))
 
 
+
+
+
 DtypeLike = DType|str|None
+from .utils import var_naming
 
 class Variable(TensorBox):
+
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore[override]
+        pass
+
     def __new__(
         cls,
         data:TensorLike,
@@ -90,14 +99,13 @@ class Variable(TensorBox):
             data,
             node=node,
             trace_id=trace_id,
-            dtype=dtype,
+            dtype=normalize_dtype(dtype),
         )
 
-        object.__setattr__(obj, "id", name)
+        object.__setattr__(obj, "id", name if name else var_naming())
         object.__setattr__(obj, "_trainable", trainable)
         return obj
 
-    # TensorFlow-style in-place update
     def assign(self, value):
         with torch.no_grad():
             value = torch.as_tensor(value, dtype=self.dtype, device=self.device)
@@ -113,7 +121,6 @@ class Variable(TensorBox):
             f"trainable={self._trainable})\n"
             f"{base}"
         ).replace('torch.', 'numfire.')
-        # return base
 
     __str__ = __repr__
 
