@@ -1,8 +1,8 @@
 from ..core import primitive
 import torch
 from .utils import unbroadcast_f
-from .utils_ops import sigmoid
-
+from . import utils_ops as U
+T = torch
 
 add_vjp = lambda g, x, y: (
     unbroadcast_f(x, lambda a:a)(g), 
@@ -46,11 +46,11 @@ log10_vjp = lambda g, x: (
 )
 
 tanh_vjp = lambda g, x: (
-    unbroadcast_f(x, lambda a: a * (1 - x.tanh() ** 2))(g),
+    unbroadcast_f(x, lambda a: a * (1 - T.tanh(x) ** 2))(g),
 )
 
 sigmoid_vjp = lambda g, x: (
-    unbroadcast_f(x, lambda a: a * sigmoid(x) * (1 - sigmoid(x)))(g),
+    unbroadcast_f(x, lambda a: a * U.sigmoid(x) * (1 - U.sigmoid(x)))(g),
 )
 
 relu_vjp = lambda g, x: (
@@ -97,8 +97,8 @@ transpose_vjp = lambda g, x, axes: (
 )
 
 matmul_vjp = lambda g, x, y: (
-    unbroadcast_f(x, lambda a: a @ y.transpose(-1, -2))(g),
-    unbroadcast_f(y, lambda a: x.transpose(-1, -2) @ a)(g),
+    unbroadcast_f(x, lambda a: a @ T.transpose(y, -1, -2))(g),
+    unbroadcast_f(y, lambda a: T.transpose(x, -1, -2) @ a)(g),
 )
 
 # ---------- comparison ----------
@@ -129,3 +129,49 @@ logical_any_vjp = lambda g, x, dim=None, keepdim=False: (None,)
 
 # extras
 astype_vjp = lambda g, x: None
+
+# NN
+
+def liner_vjp(g, x, w, b=None):
+    return(
+        unbroadcast_f(x, lambda a: T.matmul(a, T.transpose(w, -1, -2)))(g),
+        unbroadcast_f(w, lambda a: T.matmul(T.transpose(x, -1, -2), a))(g),
+        T.sum(g, 0) if b is not None else None
+    )
+
+    return w_t
+
+def conv_general_vjp(g, x, w, meta:dict):
+    w_bt = U.flip_transpose(w)
+    stride = meta['stride']
+    dilation = meta['dilation']
+    padding = meta['paddng']
+    dims = meta['dims']
+
+    kernel_shape = meta['kernel_shape']
+    b_s = dilation
+    b_d = stride
+
+    b_p = tuple(
+        (
+            (kernel_shape[i] - 1) * dilation[i] - padding[i][0],
+            (kernel_shape[i] - 1) * dilation[i] - padding[i][1],
+        )
+        for i in range(dims)
+    )
+    dx = U.convolution_f(
+        g,
+        w_bt,
+        stride=b_s,
+        padding=b_p,
+        dilation=b_d
+    )
+
+    dw = U.convolution_f(
+        T.transpose(x, 0, 1),
+        T.transpose(g, 0, 1),
+        stride=stride, 
+        padding=padding, 
+        dilation=dilation
+    )
+    return dx, dw
