@@ -1,5 +1,5 @@
 import torch
-import numfire.src.primitives as p
+import fxnet.src.primitives as p
 from .DType import normalize_dtype, DType
 from ._typing import TensorLike
 from typing import overload, Any
