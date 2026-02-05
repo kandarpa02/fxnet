@@ -3,6 +3,7 @@ import torch
 from .utils import unbroadcast_f
 from . import utils_ops as U
 T = torch
+import torch.nn.functional as F
 
 add_vjp = lambda g, x, y: (
     unbroadcast_f(x, lambda a:a)(g), 
@@ -139,39 +140,56 @@ def liner_vjp(g, x, w, b=None):
         T.sum(g, 0) if b is not None else None
     )
 
-    return w_t
 
-def conv_general_vjp(g, x, w, meta:dict):
-    w_bt = U.flip_transpose(w)
-    stride = meta['stride']
-    dilation = meta['dilation']
-    padding = meta['paddng']
-    dims = meta['dims']
+# pad
+# unfold
+# fold
+# einsum
+# reshape (view)
+# slice
 
-    kernel_shape = meta['kernel_shape']
-    b_s = dilation
-    b_d = stride
 
-    b_p = tuple(
-        (
-            (kernel_shape[i] - 1) * dilation[i] - padding[i][0],
-            (kernel_shape[i] - 1) * dilation[i] - padding[i][1],
-        )
-        for i in range(dims)
-    )
-    dx = U.convolution_f(
-        g,
-        w_bt,
-        stride=b_s,
-        padding=b_p,
-        dilation=b_d
+def conv_general_vjp(g, x, w, stride, padding, dilation, pads):
+    dims = x.ndim - 2
+    stride   = U._to_tuple(stride, dims)
+    dilation = U._to_tuple(dilation, dims)
+    kernel = w.shape[2:]
+
+    # ---- pad same as forward
+    x_pad = U.pad_input(x, pads)
+
+    cols = F.unfold(
+        x_pad,
+        kernel_size=kernel,
+        dilation=dilation,
+        padding=0,
+        stride=stride,
     )
 
-    dw = U.convolution_f(
-        T.transpose(x, 0, 1),
-        T.transpose(g, 0, 1),
-        stride=stride, 
-        padding=padding, 
-        dilation=dilation
+    g_r = g.reshape(g.shape[0], g.shape[1], -1)
+
+    # ---- dW
+    dw_col = torch.einsum("nol,ncl->oc", g_r, cols)
+    dw = dw_col.reshape_as(w)
+
+    # ---- dX (fold)
+    W_col = w.reshape(w.shape[0], -1)
+    dx_cols = torch.einsum("oc,nol->ncl", W_col, g_r)
+
+    dx_pad = F.fold(
+        dx_cols,
+        output_size=x_pad.shape[2:],
+        kernel_size=kernel,
+        dilation=dilation,
+        padding=0,
+        stride=stride,
     )
+
+    # ---- unpad
+    slices = [slice(None), slice(None)]
+    for (l, r) in pads:
+        slices.append(slice(l, dx_pad.shape[len(slices)] - r))
+
+    dx = dx_pad[tuple(slices)]
+
     return dx, dw

@@ -96,55 +96,82 @@ def normalize_padding(padding, x_shape, kernel_shape, stride, dilation):
     raise ValueError(f"Invalid padding: {padding}")
 
 
-def convolution_f(x, w, stride=1, padding=0, dilation=1):
-    """
-    padding has to be normalized
-    """
+def compute_padding(padding, x_shape, kernel, stride, dilation):
+    if isinstance(padding, int):
+        return [(padding, padding)] * len(kernel)
 
-    with T.no_grad():
-        dims = x.ndim - 2
+    if isinstance(padding, (tuple, list)) and isinstance(padding[0], int):
+        return [(p, p) for p in padding]
 
-        stride = _to_tuple(stride, dims)
-        dilation = _to_tuple(dilation, dims)
+    if isinstance(padding, str):
+        padding = padding.lower()
+        spatial = x_shape[2:]
+        pads = []
 
-        N, C_in = x.shape[:2]
-        C_out = w.shape[0]
+        for i in range(len(kernel)):
+            k_eff = dilation[i] * (kernel[i] - 1) + 1
 
-        assert w.shape[1] == C_in, (
-            f"Expected w.shape[1] == {C_in}, got {w.shape[1]}"
-        )
+            if padding == "valid":
+                pads.append((0, 0))
 
-        kernel_shape = w.shape[2:]
+            elif padding == "same":
+                out = (spatial[i] + stride[i] - 1) // stride[i]
+                total = max(0, (out - 1) * stride[i] + k_eff - spatial[i])
+                l = total // 2
+                r = total - l
+                pads.append((l, r))
 
-        cols = Unfold(
-            x,
-            kernel_shape,
-            dilation,
-            padding,
-            stride
-        )
+            elif padding == "full":
+                p = k_eff - 1
+                pads.append((p, p))
 
-        out_shape = get_out_shape(
-            x, cols, kernel_shape, stride, padding, dilation
-        )
+            else:
+                raise ValueError(padding)
 
-        W_col = T.reshape(w, [C_out, -1])
-        out = T.einsum("oc,ncp->nop", W_col, cols)
-        out = T.reshape(out, [N, C_out, *out_shape])
+        return pads
 
-    return out
+    return padding
 
-def flip_transpose(w):
-    """
-    w: (C_out, C_in, k1, k2, ..., kD)
-    returns:
-       (C_in, C_out, k1, k2, ..., kD) with spatial flip
-    """
-    dims = w.ndim - 2
+def pad_input(x, pads):
+    flat = []
+    for l, r in reversed(pads):
+        flat.extend([l, r])
+    return F.pad(x, flat)
 
-    w_t = T.swapaxes(w, 0, 1)
 
-    for i in range(dims):
-        w_t = T.flip(w_t, dims=(2 + i,))
+# primitive(pad)
+# primitive(unfold)
+# primitive(fold)
+# primitive(einsum)
+# primitive(reshape/view)
+# primitive(transpose/permute)
+# primitive(slice)
 
-    return w_t
+
+def convolution_f(x, w, stride=1, padding="valid", dilation=1):
+    dims = x.ndim - 2
+    stride   = _to_tuple(stride, dims)
+    dilation = _to_tuple(dilation, dims)
+
+    kernel = w.shape[2:]
+    pads = compute_padding(padding, x.shape, kernel, stride, dilation)
+
+    x_pad = pad_input(x, pads)
+
+    cols = F.unfold(
+        x_pad,
+        kernel_size=kernel,
+        dilation=dilation,
+        padding=0,        # IMPORTANT
+        stride=stride,
+    )
+
+    W_col = w.reshape(w.shape[0], -1)
+    out = torch.einsum("oc,ncl->nol", W_col, cols)
+
+    # compute output shape from padded input
+    Hout = (x_pad.shape[2] - dilation[0]*(kernel[0]-1) - 1)//stride[0] + 1
+    Wout = (x_pad.shape[3] - dilation[1]*(kernel[1]-1) - 1)//stride[1] + 1
+
+    return out.reshape(x.shape[0], w.shape[0], Hout, Wout), pads
+

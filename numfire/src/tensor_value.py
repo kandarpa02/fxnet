@@ -3,6 +3,7 @@ import numfire.src.primitives as p
 from .DType import normalize_dtype, DType
 from ._typing import TensorLike
 from typing import overload, Any
+from torch._tensor_str import _str
 
 class TensorBox(torch.Tensor):
     def __new__(cls, data, node=None, trace_id=None, dtype=None):
@@ -20,9 +21,14 @@ class TensorBox(torch.Tensor):
         setattr(obj, 'trace_id', trace_id)
         return obj
 
+    # def __repr__(self):
+    #     # _dstr = DType.from_torch_dtype(str(self.dtype)).name
+    #     _base = _str(self.clone())
+    #     # return "Tensor" + super().__repr__().removeprefix("TensorBox").replace('torch.', 'numfire.')
+    #     return _base
     def __repr__(self):
-        # _dstr = DType.from_torch_dtype(str(self.dtype)).name
-        return "Tensor" + super().__repr__().removeprefix("TensorBox").replace('torch.', 'numfire.')
+        base = self.as_subclass(torch.Tensor)
+        return "Tensor"+_str(base).removeprefix('tensor').replace("torch.", "numfire.")
     
     __str__ = __repr__
 
@@ -118,13 +124,13 @@ class Variable(TensorBox):
 
     def __repr__(self):
         # _dstr = DType.from_torch_dtype(str(self.dtype)).name
-        base = "Tensor" + super().__repr__().removeprefix("TensorVariable")
+        base = _str(self.as_subclass(torch.Tensor)).removeprefix('tensor')
         return (
             f"Variable(name={self.id!r}, "
             f"shape={tuple(self.shape)}, "
             f"dtype={self.dtype}, "
             f"trainable={self._trainable})\n"
-            f"{base}"
+            f"Tensor{base}"
         ).replace('torch.', 'numfire.')
 
     __str__ = __repr__

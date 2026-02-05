@@ -13,3 +13,21 @@ def linear(x, w, b=None):
     lin_f = primitive(func, lambda g: liner_vjp(x, w, b))
     return lin_f(x, w, b)
 
+# 'stride', 'dilation', 'padding', 'dims', 'kernel_shape'
+
+# primitive(pad)
+# primitive(unfold)
+# primitive(fold)
+# primitive(einsum)
+# primitive(reshape/view)
+# primitive(transpose/permute)
+# primitive(slice)
+
+
+def conv_general(x, w, stride=1, padding="valid", dilation=1):
+    out, pads = U.convolution_f(x, w, stride, padding, dilation)
+
+    def vjp(g, x, w):
+        return conv_general_vjp(g, x, w, stride, padding, dilation, pads)
+
+    return primitive(lambda x, w: out, vjp)(x, w)
