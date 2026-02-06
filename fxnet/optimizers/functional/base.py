@@ -1,4 +1,4 @@
-from ...src.tree_util import register_tree_node, flatten_pytree, unflatten_pytree, TreeDef, map
+from ...tree_util import register_tree_node, flatten_pytree, unflatten_pytree, TreeDef, map
 from typing import Dict, Union, OrderedDict, Any
 from ...nn.parameters import Variable
 import dataclasses

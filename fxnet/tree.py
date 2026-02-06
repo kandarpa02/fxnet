@@ -1,1 +1,1 @@
-from .src.tree_util import map, register_tree_node, unflatten_pytree, flatten_pytree
+from .tree_util import map, register_tree_node, unflatten_pytree, flatten_pytree

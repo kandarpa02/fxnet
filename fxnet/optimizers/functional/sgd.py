@@ -1,5 +1,5 @@
 from .base import optimizer, ParamLike
-from ...src.tree_util import flatten_pytree, unflatten_pytree
+from ...tree_util import flatten_pytree, unflatten_pytree
 
 class sgd(optimizer):
     def __init__(self, 
