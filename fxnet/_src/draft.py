@@ -166,3 +166,16 @@ def grad(f):
     
     return df
 
+f = lambda x: x*x*x
+a = Tracer(2.)
+g = grad(f)
+g2 = grad(g)
+
+print('out: ', f(a))
+print('g1: ', g(a))
+print('g2: ', g2(a))
+
+# python fxnet/_src/draft.py
+# out:  Tracer(8.0)
+# g1:  Tracer(12.0)
+# g2:  Tracer(12.0)

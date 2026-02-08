@@ -11,35 +11,50 @@ class Node:
         return id(self)
     
 
-unwrap = lambda x: getattr(x, 'value', x)
+# def unwrap(x):
+#     """Extract value from Tracer or return the value itself"""
+#     if hasattr(x, 'value'):
+#         return x.value
+#     return x
+
+def unwrap(x):
+    from .tensor_base import Tracer
+    while isinstance(x, Tracer):
+        x = x.value
+    return x
+
 
 def defvjp(f, vjps):
-    from .tracer import Tracer
-    """
-    f: callable (e.g. np.add, np.multiply)
-    vjps: list/tuple of VJP functions, each (g, *args) -> grad w.r.t that input
-    """
+    from .tensor_base import Tracer
     def wrapped(*args):
-        vals = tuple(unwrap(arg) for arg in args)
+        vals = [unwrap(a) for a in args]
         out = f(*vals)
 
-        # Collect Tracer parents
         parents = []
-        vjp_funcs = []
+        vjp_fns = []
 
-        for i, (arg, vjp_fn) in enumerate(zip(args, vjps)):
+        for arg, vjp in zip(args, vjps):
             if isinstance(arg, Tracer):
                 parents.append(arg.node)
-                # Store the arguments for the VJP
-                def make_vjp(vjp_fn, args=args, i=i):
-                    return lambda g: vjp_fn(g, *args)
-                vjp_funcs.append(make_vjp(vjp_fn))
+
+                def make_vjp(vjp, args=args):
+                    def _vjp(g):
+                        raw_args = [unwrap(a) for a in args]
+                        return vjp(g, *raw_args)  # <-- RAW TENSORS ONLY
+                    return _vjp
+
+                vjp_fns.append(make_vjp(vjp))
 
         if parents:
-            node = Node(out, list(zip(parents, vjp_funcs)))
+            node = Node(out, list(zip(parents, vjp_fns)))
             return Tracer(out, node)
-        else:
-            return out
+        return out
 
     return wrapped
 
+
+def novjp(f):
+    def wrapped(*args):
+        nonevjps = tuple(lambda g, *args: None for _ in args)
+        return defvjp(f, vjps=nonevjps)(*args)
+    return wrapped
