@@ -1,181 +1,159 @@
-import numpy as np
-from dataclasses import dataclass
-from typing import Callable, List, Tuple, Any, Optional, Dict, Set
 import torch
+import dataclasses
+import contextlib
+from typing import Any, Callable
+from collections.abc import Sequence
+from collections import defaultdict
 
-@dataclass
+REC = False
+@contextlib.contextmanager
+def can_run_backward():
+    global REC
+    prev = REC
+    REC = True
+    try:
+        yield
+    finally:
+        REC = prev
+
+@dataclasses.dataclass
 class Node:
-    value: Any
-    parents: List[Tuple["Node", Callable]]
+    value:Any
+    parents:tuple
+    vjp:Callable
+
+
+class Texor(torch.Tensor):
+    @staticmethod
+    def __new__(cls, data, tape=None):
+        data = torch.as_tensor(data).detach()
+        obj = torch.Tensor._make_subclass(cls, data, require_grad=False)
+        obj.tape = [] if tape is None else tape
+        return obj
+
+    def __init__(self, data, tape=None):
+        pass
+
+    @classmethod
+    def __torch_function__(cls, func, types, args=(), kwargs=None):
+        if kwargs is None:
+            kwargs = {}
+
+        # unwrap Texor -> Tensor
+        def unwrap(x):
+            return x.as_subclass(torch.Tensor) if isinstance(x, Texor) else x
+
+        unwrapped_args = tuple(unwrap(a) for a in args)
+
+        # run real torch op
+        out = func(*unwrapped_args, **kwargs)
+
+        # wrap outputs back to Texor
+        def wrap(x):
+            if isinstance(x, torch.Tensor):
+                tx = Texor(x)
+                return tx
+            return x
+
+        if isinstance(out, tuple):
+            return tuple(wrap(o) for o in out)
+        return wrap(out)
+
     
-    def __hash__(self):
-        return id(self)
+def primitive(f):
+    def infunc(*args):
+        args = tuple(Texor(arg) for arg in args)
+        return f(*args)
+    return infunc
 
-class Tracer:
-    def __init__(self, value, node=None):
-        self.value = value
-        self.node = node
+def function_vjp_wrap(fwd, bwd):
+    def infunc(*args):
+        args = tuple(arg if isinstance(arg, Texor) else Texor(arg)
+                     for arg in args)
+        y, res = fwd(*args)
+        node = Node(y, parents=args, vjp=lambda g: bwd(g, res))
+        y.tape.append(node)
+        return y
+    return infunc
 
-    def __add__(self, other):
-        return add(self, other)
-    def __radd__(self, other):
-        return add(self, other)
-    def __mul__(self, other):
-        return mul(self, other)
-    def __rmul__(self, other):
-        return mul(self, other)
+class defrules:
+    def __init__(self, func):
+        self.func = primitive(func)
+        self.vjp = lambda: None
+    
+    def defvjp(self, fwd, bwd):
+        self.vjp = function_vjp_wrap(fwd, bwd)
 
-    def __repr__(self):
-        return f"Tracer({self.value})"
-
-unwrap = lambda x: getattr(x, 'value', x)
-
-def primitive(f, vjps):
-    """
-    f: callable (e.g. np.add, np.multiply)
-    vjps: list/tuple of VJP functions, each (g, *args) -> grad w.r.t that input
-    """
-    def wrapped(*args):
-        vals = tuple(unwrap(arg) for arg in args)
-        out = f(*vals)
-
-        # Collect Tracer parents
-        parents = []
-        vjp_funcs = []
-
-        for i, (arg, vjp_fn) in enumerate(zip(args, vjps)):
-            if isinstance(arg, Tracer):
-                parents.append(arg.node)
-                # Store the arguments for the VJP
-                def make_vjp(vjp_fn, args=args, i=i):
-                    return lambda g: vjp_fn(g, *args)
-                vjp_funcs.append(make_vjp(vjp_fn))
-
-        if parents:
-            node = Node(out, list(zip(parents, vjp_funcs)))
-            return Tracer(out, node)
+    def __call__(self, *args):
+        global REC
+        if REC:
+            return self.vjp(*args)
         else:
-            return out
-
-    return wrapped
-
-
-# VJP functions
-def add_vjp0(g, x, y):
-    return g
-
-def add_vjp1(g, x, y):
-    return g
-
-def mul_vjp0(g, x, y):
-    # g * y, where y might be a tracer or a value
-    return g * y
-
-def mul_vjp1(g, x, y):
-    # g * x, where x might be a tracer or a value
-    return g * x
-
-add = primitive(np.add, (add_vjp0, add_vjp1))
-mul = primitive(np.multiply, (mul_vjp0, mul_vjp1))
-
-
-def backward(node: Node, grad):
-    # Get topological order
-    topo = []
-    visited = set()
-    
-    def build_topo(v):
-        if v not in visited:
-            visited.add(v)
-            for parent, _ in v.parents:
-                build_topo(parent)
-            topo.append(v)
-    
-    build_topo(node)
-    
-    # Initialize gradients
-    grads = {node: grad}
-    
-    # Process in reverse topological order
-    for v in reversed(topo):
-        g = grads[v]
+            return self.func(*args)
         
-        for parent, vjp in v.parents:
-            # Compute gradient contribution from this parent
-            pg = vjp(g)
-            
-            # Accumulate gradient
-            if parent in grads:
-                # For gradient accumulation, we need to use regular addition
-                # not the overloaded operator that creates new tracers
-                if isinstance(grads[parent], Tracer) or isinstance(pg, Tracer):
-                    # If we have tracers, we need to trace through the accumulation
-                    grads[parent] = grads[parent] + pg
-                else:
-                    # Regular numerical accumulation
-                    grads[parent] = grads[parent] + pg
-            else:
-                grads[parent] = pg
-    
+@defrules
+def add(x, y):
+    return torch.add(x, y)
+
+add.defvjp(
+    lambda x, y: (torch.add(x, y), []),
+    lambda g, res: (g, g)
+)
+
+@defrules
+def mul(x, y):
+    return torch.mul(x, y)
+
+mul.defvjp(
+    lambda x, y: (torch.mul(x, y), [y, x]),
+    lambda g, res: (mul(g, res[0]), mul(g, res[1]))
+)
+
+a = Texor(3.)
+b = Texor(5.)
+
+
+def backward(root):
+    grads = defaultdict(lambda: 0)
+    grads[root] = torch.ones_like(root)
+
+    for node in reversed(root.tape):
+        g = grads[node.value]
+
+        parent_grads = node.vjp(g)
+
+        for p, gp in zip(node.parents, parent_grads):
+            grads[p] = add(grads[p], gp)
+
+
     return grads
 
-
-def trace(f, args):
-    """Trace a function with arguments"""
-    # Convert inputs to tracers
-    leaves = []
-    tracers = []
-    for arg in args:
-        leaf = Node(arg, [])
-        leaves.append(leaf)
-        tracers.append(Tracer(arg, leaf))
-    
-    out = f(*tracers)
-    return out, leaves
-
-
 def grad(f):
-    """Return a function that computes the gradient of f"""
     def df(*args):
-        # Trace the function to build computational graph
-        out, leaves = trace(f, args)
-        
-        # Initialize gradient
-        init_grad = 1.0
-        
-        # Backward pass
-        grads = backward(out.node, init_grad)
-        
-        # Extract gradients for leaves
-        result_grads = []
-        for leaf in leaves:
-            if leaf in grads:
-                grad_val = grads[leaf]
-                # For first-order gradients, we want to return the value
-                # not a Tracer
-                if isinstance(grad_val, Tracer):
-                    result_grads.append(grad_val.value)
-                else:
-                    result_grads.append(grad_val)
-            else:
-                result_grads.append(0.0)
-        
-        if len(result_grads) == 1:
-            return result_grads[0]
-        return tuple(result_grads)
-    
+        with can_run_backward():
+            out = f(*args)
+            grads = backward(out)
+
+        # return grads for inputs in order
+        return tuple(grads[a] for a in args)
     return df
 
-f = lambda x: x*x*x
-a = Tracer(2.)
+def f(x):
+    y = mul(x, x)      # x^2
+    z = mul(y, x)     
+    return z
+
 g = grad(f)
-g2 = grad(g)
 
-print('out: ', f(a))
-print('g1: ', g(a))
-print('g2: ', g2(a))
+x = Texor(3.)
+g1, = g(x)
 
-# python fxnet/_src/draft.py
-# out:  Tracer(8.0)
-# g1:  Tracer(12.0)
-# g2:  Tracer(12.0)
+print(g1)     # should be 27
+
+
+g2 = grad(lambda x: g(x)[0])
+
+x = Texor(3.)
+g2x, = g2(x)
+
+print(g2x)    # should be 18
