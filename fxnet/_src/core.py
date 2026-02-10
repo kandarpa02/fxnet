@@ -25,6 +25,7 @@ def function_vjp_wrap(fwd, bwd):
         from .differentiate_engine import TAPE
         args = tuple(arg if isinstance(arg, Texor) else Texor(arg)
                      for arg in args)
+                     
         y, res = fwd(*args)
         node = Node(y, parents=args, vjp=lambda g: bwd(g, res))
         TAPE.append(node)
