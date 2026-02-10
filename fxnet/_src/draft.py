@@ -12,12 +12,6 @@ def create_tape():
     global TAPE 
     TAPE.append([])
 
-@dataclasses.dataclass
-class Node:
-    value:Any
-    parents:tuple
-    vjp:Callable
-
 
 class Texor(torch.Tensor):
     __qualname__ = 'Tensor'
@@ -58,7 +52,14 @@ class Texor(torch.Tensor):
             return tuple(wrap(o) for o in out)
         return wrap(out)
 
-    
+
+
+@dataclasses.dataclass
+class Node:
+    value:Any
+    parents:tuple
+    vjp:Callable
+
 def primitive(f):
     def infunc(*args):
         args = tuple(Texor(arg) for arg in args)
@@ -76,7 +77,7 @@ def function_vjp_wrap(fwd, bwd):
         return y
     return infunc
 
-class defrules:
+class Primitive:
     def __init__(self, func):
         self.func = primitive(func)
         self.vjp = lambda: None
@@ -91,7 +92,7 @@ class defrules:
         else:
             return self.func(*args)
         
-@defrules
+@Primitive
 def add(x, y):
     return torch.add(x, y)
 
@@ -100,7 +101,7 @@ add.defvjp(
     lambda g, res: (g, g)
 )
 
-@defrules
+@Primitive
 def mul(x, y):
     return torch.mul(x, y)
 
@@ -188,7 +189,7 @@ def f(x):
     z = mul(y, x)     
     return z
 
-a = Texor(torch.tensor(5.))
+a = Texor(torch.tensor(3.))
 
 with GradScope() as t2:
     with GradScope() as t1:

@@ -1,7 +1,7 @@
-from ..core import defvjp, novjp
+from ..core import fxwrap
 import torch
 
-@novjp
+@fxwrap
 def unbroadcast(shape_like: torch.Tensor, grad: torch.Tensor):
     """
     Sum grad so that it matches target_shape (reverse of broadcasting)

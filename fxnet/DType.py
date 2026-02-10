@@ -1,66 +1,35 @@
 import torch
 
 class DType:
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, base: torch.dtype):
+        self.base = base          # the real torch dtype
+        self.name = base.__str__()
 
-    def native(self):
-        return getattr(torch, self.name)
+    def __repr__(self):
+        return "fxnet."+f"{self.name}".removeprefix('torch.')
     
-    def __repr__(self) -> str:
-        return f"numfire.{self.name}"
-
     __str__ = __repr__
 
-    @classmethod
-    def from_torch_dtype(cls, dtype:str):
-        return DType(dtype.removeprefix('torch.'))
+    def __call__(self): return self.base
 
-float16 = DType("float16")
-float32 = DType("float32")
-float64 = DType("float64")
-int16    = DType("int16")
-int32    = DType("int32")
-int64    = DType("int64")
-bool_    = DType("bool")
+DTypeLike = DType|torch.dtype|int|float|complex
 
-def dname(d):
-	f = str(d).removeprefix("<class '").removesuffix("'>")
-	dmap = {'float':float32, 'bool':bool_, 'int':int32}
-	return dmap.get(f, float32)
 
-def normalize_dtype(dtype, string=False) -> torch.dtype:
-    if dtype is None:
-        return None
+float64 = DType(torch.float64)
+float32 = DType(torch.float32)
+float16 = DType(torch.float16)
+
+int64   = DType(torch.int64)
+int32   = DType(torch.int32)
+int16   = DType(torch.int16)
+
+bool = DType(torch.bool)
+
+
+def dtype_f(dt):
+    if isinstance(dt, DType):
+        return dt()
+    if isinstance(dt, (int, float, complex)):
+        return dt
+    return dt
     
-    # If already xp dtype (numpy/cupy)
-    if hasattr(dtype, 'kind'):  
-        return dtype
-
-    # NumPy shorthand boolean
-    if dtype == '?':
-        if string: 
-            return bool_.name
-        return bool_.native()
-
-    # If our abstract DType
-    if isinstance(dtype, DType):
-        if string: 
-            return dtype.name
-        return dtype.native()
-    
-    if isinstance(dtype, type):
-        if string: 
-            return dname(dtype).name
-        return dname(dtype).native()
-
-    # If string passed
-    if isinstance(dtype, str):
-        if string: 
-            return getattr(torch, dtype).__repr__()
-        return getattr(torch, dtype)
-
-    raise TypeError(f"Invalid dtype: {dtype}")
-
-def reverse_dtype(dtype)->str:
-    return DType.from_torch_dtype(dtype=dtype).__repr__()

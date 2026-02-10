@@ -1,7 +1,13 @@
 import torch
-from ..core import defvjp, novjp
+from ..core import primitive, fxwrap
+from ..tensor_base import Texor
+from ...DType import DTypeLike, dtype_f
 
-ONES_LIKE = defvjp(
-    lambda x: torch.ones_like(x),
-    (lambda g, x: None,)
-)
+@fxwrap
+def ones_like(x:Texor, dtype:DTypeLike):
+    return torch.ones_like(x, dtype=dtype_f(dtype))
+
+@fxwrap
+def zeros_like(x:Texor, dtype:DTypeLike):
+    return torch.zeros_like(x, dtype=dtype_f(dtype))
+

@@ -4,9 +4,8 @@
 # from .src.utils import custom_function
 from .DType import (
     DType, int16, int32, int64,
-    float16, float32, float64, bool_
+    float16, float32, float64, bool
 )
-# from . import nn
 
 # from .src.tree_util import register_tree_node, flatten_pytree, unflatten_pytree
 from . import tree
@@ -15,4 +14,5 @@ from . import tree
 # from .src.ndarray.array_creation import ones, ones_like, zeros, zeros_like, full, full_like
 # from .src.ndarray.array_transformation import one_hot
 
-from ._src.user_api import tensor, grad, value_and_grad
+# from ._src.user_api import tensor, grad, value_and_grad
+from ._src.differentiate_engine import GradScope

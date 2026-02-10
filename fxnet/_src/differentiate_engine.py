@@ -1,118 +1,83 @@
-from .core import Node
-from .tensor_base import Tracer
-from ..tree_util import flatten_pytree, unflatten_pytree
-from .basic_functions.non_grad_utils import ONES_LIKE
+from collections import defaultdict
 import torch
 
-# def backward(node: Node, grad):
-#     # Get topological order
-#     topo = []
-#     visited = set()
-    
-#     def build_topo(v):
-#         if v not in visited:
-#             visited.add(v)
-#             for parent, _ in v.parents:
-#                 build_topo(parent)
-#             topo.append(v)
-    
-#     build_topo(node)
-    
-#     # Initialize gradients
-#     grads = {node: grad}
-    
-#     # Process in reverse topological order
-#     for v in reversed(topo):
-#         g = grads[v]
-        
-#         for parent, vjp in v.parents:
-#             # Compute gradient contribution from this parent
-#             pg = vjp(g)
-            
-#             # Accumulate gradient
-#             if parent in grads:
-#                 # For gradient accumulation, we need to use regular addition
-#                 # not the overloaded operator that creates new tracers
-#                 if isinstance(grads[parent], Tracer) or isinstance(pg, Tracer):
-#                     # If we have tracers, we need to trace through the accumulation
-#                     grads[parent] = grads[parent] + pg
-#                 else:
-#                     # Regular numerical accumulation
-#                     grads[parent] = grads[parent] + pg
-#             else:
-#                 grads[parent] = pg
-    
-    # return grads
+REC = False
+TAPE = None
 
-def backward(node: Node, grad):
-    topo = []
-    visited = set()
+def create_tape():
+    global TAPE 
+    TAPE = []
 
-    def build(v):
-        if v not in visited:
-            visited.add(v)
-            for p, _ in v.parents:
-                build(p)
-            topo.append(v)
+def backward(tape:list):
+    from .basic_functions.vjps import add
+    grads = defaultdict(lambda: 0)
+    root_node_value = tape[-1].value
+    grads[root_node_value] = torch.ones_like(root_node_value)
 
-    build(node)
+    for node in reversed(tape):
+        g = grads[node.value]
 
-    grads = {node: grad}
+        parent_grads = node.vjp(g)
 
-    for v in reversed(topo):
-        g = grads[v]
-        for parent, vjp in v.parents:
-            pg = vjp(g)              # <-- MUST be raw torch tensor
-            if pg is None:
-                continue
-            grads[parent] = grads.get(parent, 0) + pg
+        for p, gp in zip(node.parents, parent_grads):
+            grads[p] = add(grads[p], gp)
 
     return grads
 
+class EmptyTapeError(RuntimeError):
+    pass
+
+class GradientTargetError(RuntimeError):
+    pass
 
 
-def trace(f, args):
-    flat, spec = flatten_pytree(args)
+class GradScope:
+    def __init__(self, share=False) -> None:
+        self.join = share
 
-    leaves = []
-    tracers = []
+    def __enter__(self):
+        global REC, TAPE
+        self.prev = REC
+        REC = True
+        if TAPE is None or not self.join:
+            create_tape()
 
-    for x in flat:
-        n = Node(x, [])
-        leaves.append(n)
-        tracers.append(Tracer(x, n))
+        return self
 
-    traced_args = unflatten_pytree(tracers, spec)
-    out = f(*traced_args)
+    def __exit__(self, exc_type, exc_value, traceback):
+        global REC
+        REC = self.prev
+        if not self.join:
+            global TAPE
+            TAPE = None
+        return False
 
-    return out, leaves, spec
+    def gradient(self, *targets):
+        global TAPE
+        for t in targets:
+            from .tensor_base import Texor
+            if not isinstance(t, Texor):
+                raise ValueError(f"targets must be {Texor} for computing gradients. ")
+            
 
+        if not TAPE:
+            raise EmptyTapeError(
+                "No active trace found. "
+                "This usually happens if `share` was False "
+                "or `gradient()` is used outside the Trace context."
+            )
 
-def unwrap(x): return getattr(x, 'value', x)
+        tape = TAPE
+        gdict = backward(tape)
 
-def value_and_grad(f):
-    def wrapper(*args):
-        out, leaves, spec = trace(f, args)
+        grads = []
+        for t in targets:
+            if t not in gdict:
+                raise GradientTargetError(
+                    f"Cannot compute gradient for {t}. "
+                    "This value was not produced inside the current Trace."
+                )
+            grads.append(gdict[t])
 
-        if isinstance(out, (list, tuple)):
-            out = out[0]
-
-        init_grad = ONES_LIKE(unwrap(out))
-
-        grads = backward(out.node, init_grad)
-
-        flat_grads = []
-        for leaf in leaves:
-            g = grads.get(leaf, 0)
-            flat_grads.append(g)
-
-        grads_tree = unflatten_pytree(flat_grads, spec)
-
-        return unwrap(out), grads_tree
-
-    return wrapper
-
-def grad(f):
-    vg = value_and_grad(f)
-    return lambda *a: vg(*a)[1]
+        return grads[0] if len(grads) == 1 else tuple(grads)
 
