@@ -20,6 +20,9 @@ class Node:
 
 
 class Texor(torch.Tensor):
+    __qualname__ = 'Tensor'
+    __module__ = 'fxnet'
+
     @staticmethod
     def __new__(cls, data, tape=None):
         data = torch.as_tensor(data).detach()
@@ -121,50 +124,63 @@ def backward(tape:list[Node]):
 
     return grads
 
-def grad(f):
-    def df(*args):
-        with can_run_backward():
-            out = f(*args)
-            grads = backward(out)
+class EmptyTapeError(RuntimeError):
+    pass
 
-        # return grads for inputs in order
-        return tuple(grads[a] for a in args)
-    return df
+class GradientTargetError(RuntimeError):
+    pass
 
-class EmptyTapeError(Exception):
-    def __init__(self, *args: object) -> None:
-        super().__init__(*args)
 
-class Tape:
-    def __init__(self):
-        pass
-    
+class GradScope:
     def __enter__(self):
         global REC
         self.prev = REC
         REC = True
         create_tape()
         return self
-    
+
     def __exit__(self, exc_type, exc_value, traceback):
         global REC
         REC = self.prev
         return False
-    
-    def clear_tape(self):
+
+    def clear(self):
         global TAPE
         TAPE = []
 
-    def gradient(self, *args):
+    def gradient(self, *targets):
+        for t in targets:
+            if not isinstance(t, Texor):
+                raise ValueError(f"targets must be {Texor} for computing gradients. ")
+            
         global TAPE
-        if len(TAPE)==0:
+
+        if not TAPE:
             raise EmptyTapeError(
-                f"Previous tape is empty. It is likely caused for using clear_tape() too early. "
-                "Use clear_tape() in the last branch of the nested Tape expression only. "
+                "No active trace found. "
+                "This usually happens if `clear()` was called too early "
+                "or `gradient()` is used outside the Trace context."
+            )
+
+        tape = TAPE[-1]
+        if not tape:
+            raise EmptyTapeError(
+                "The current trace is empty. "
+                "Ensure operations were executed inside the Trace block."
+            )
+
+        gdict = backward(tape)
+
+        grads = []
+        for t in targets:
+            if t not in gdict:
+                raise GradientTargetError(
+                    f"Cannot compute gradient for {t}. "
+                    "This value was not produced inside the current Trace."
                 )
-        gdict = backward(TAPE[-1])
-        grads = tuple(gdict[a] for a in args)
-        return grads[-1] if len(grads)==1 else grads
+            grads.append(gdict[t])
+
+        return grads[0] if len(grads) == 1 else tuple(grads)
 
 
 def f(x):
@@ -172,14 +188,14 @@ def f(x):
     z = mul(y, x)     
     return z
 
-a = Texor(5.)
+a = Texor(torch.tensor(5.))
 
-with Tape() as t2:
-    with Tape() as t1:
+with GradScope() as t2:
+    with GradScope() as t1:
         y = f(a)
         print(y)
         g1 = t1.gradient(a)
         print('dx', g1)
     g2 = t2.gradient(a)
     print('d2x', g2)
-    t2.clear_tape()
+    t2.clear()
