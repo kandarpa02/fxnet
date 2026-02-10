@@ -6,15 +6,11 @@ from collections.abc import Sequence
 from collections import defaultdict
 
 REC = False
-@contextlib.contextmanager
-def can_run_backward():
-    global REC
-    prev = REC
-    REC = True
-    try:
-        yield
-    finally:
-        REC = prev
+TAPE = []
+
+def create_tape():
+    global TAPE 
+    TAPE.append([])
 
 @dataclasses.dataclass
 class Node:
@@ -72,7 +68,8 @@ def function_vjp_wrap(fwd, bwd):
                      for arg in args)
         y, res = fwd(*args)
         node = Node(y, parents=args, vjp=lambda g: bwd(g, res))
-        y.tape.append(node)
+        global TAPE
+        TAPE[-1].append(node)
         return y
     return infunc
 
@@ -109,22 +106,18 @@ mul.defvjp(
     lambda g, res: (mul(g, res[0]), mul(g, res[1]))
 )
 
-a = Texor(3.)
-b = Texor(5.)
-
-
-def backward(root):
+def backward(tape:list[Node]):
     grads = defaultdict(lambda: 0)
-    grads[root] = torch.ones_like(root)
+    root_node_value = tape[-1].value
+    grads[root_node_value] = torch.ones_like(root_node_value)
 
-    for node in reversed(root.tape):
+    for node in reversed(tape):
         g = grads[node.value]
 
         parent_grads = node.vjp(g)
 
         for p, gp in zip(node.parents, parent_grads):
             grads[p] = add(grads[p], gp)
-
 
     return grads
 
@@ -138,22 +131,55 @@ def grad(f):
         return tuple(grads[a] for a in args)
     return df
 
+class EmptyTapeError(Exception):
+    def __init__(self, *args: object) -> None:
+        super().__init__(*args)
+
+class Tape:
+    def __init__(self):
+        pass
+    
+    def __enter__(self):
+        global REC
+        self.prev = REC
+        REC = True
+        create_tape()
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        global REC
+        REC = self.prev
+        return False
+    
+    def clear_tape(self):
+        global TAPE
+        TAPE = []
+
+    def gradient(self, *args):
+        global TAPE
+        if len(TAPE)==0:
+            raise EmptyTapeError(
+                f"Previous tape is empty. It is likely caused for using clear_tape() too early. "
+                "Use clear_tape() in the last branch of the nested Tape expression only. "
+                )
+        gdict = backward(TAPE[-1])
+        grads = tuple(gdict[a] for a in args)
+        return grads[-1] if len(grads)==1 else grads
+
+
 def f(x):
     y = mul(x, x)      # x^2
     z = mul(y, x)     
     return z
 
-g = grad(f)
+a = Texor(5.)
 
-x = Texor(3.)
-g1, = g(x)
-
-print(g1)     # should be 27
-
-
-g2 = grad(lambda x: g(x)[0])
-
-x = Texor(3.)
-g2x, = g2(x)
-
-print(g2x)    # should be 18
+with Tape() as t2:
+    with Tape() as t1:
+        y = f(a)
+        print(y)
+        g1 = t1.gradient(a)
+        print('dx', g1)
+    g2 = t2.gradient(a)
+    print('d2x', g2)
+    t2.clear_tape()
