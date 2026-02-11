@@ -70,6 +70,9 @@ class Texor(torch.Tensor):
     def view(self, *shape): return reshape(self, *shape)
     def permute(self, *axes): return permute(self, axes)
     def transpose(self, *axes): return permute(self, axes)
+    def squeeze(self, axis=None): return squeeze(self, axis)
+    def unsqueeze(self, axis=None): return unsqueeze(self, axis)
+
     def __getitem__(self, idx): return _getitem(self, idx)
     def __gt__(self, other): return greater(self, other)
     def __rgt__(self, other): return greater(other, self)
@@ -83,4 +86,5 @@ class Texor(torch.Tensor):
     def __req__(self, other): return equal(other, self)
     def __ne__(self, other): return not_equal(self, other)
     def __rne__(self, other): return not_equal(other, self)
+
 

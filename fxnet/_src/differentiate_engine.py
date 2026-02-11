@@ -1,5 +1,6 @@
 from collections import defaultdict
 import torch
+from ..tree_util import flatten_pytree, unflatten_pytree
 
 REC = False
 TAPE = None
@@ -52,12 +53,14 @@ class GradScope:
             TAPE = None
         return False
 
-    def gradient(self, *targets):
+    def gradient(self, *variables):
+        flat_vars, spec = flatten_pytree(variables)
+
         global TAPE
-        for t in targets:
+        for t in flat_vars:
             from .tensor_base import Texor
             if not isinstance(t, Texor):
-                raise ValueError(f"targets must be {Texor} for computing gradients. ")
+                raise ValueError(f"variables must be {Texor} for computing gradients. ")
             
 
         if not TAPE:
@@ -71,7 +74,7 @@ class GradScope:
         gdict = backward(tape)
 
         grads = []
-        for t in targets:
+        for t in flat_vars:
             if t not in gdict:
                 raise GradientTargetError(
                     f"Cannot compute gradient for {t}. "
@@ -79,5 +82,7 @@ class GradScope:
                 )
             grads.append(gdict[t])
 
-        return grads[0] if len(grads) == 1 else tuple(grads)
+        result = unflatten_pytree(grads, spec)
+
+        return result[0] if len(result) == 1 else result
 

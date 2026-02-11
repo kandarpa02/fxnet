@@ -20,7 +20,9 @@ tanh
 ===== Reductions =====
 sum
 mean
-
+max
+min
+prod
 ===== Shape / view ops =====
 reshape / view
 permute / transpose (via permute)
@@ -36,3 +38,6 @@ less_equal
 equal
 not_equal
 
+where
+squeeze
+unsqueeze

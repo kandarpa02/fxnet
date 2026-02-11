@@ -388,3 +388,43 @@ def not_equal(x, y):
     )
 
     return _ne(x, y)
+
+def where(condition, x, y):
+    @primitive
+    def _where(condition, x, y):
+        return torch.where(condition, x, y)
+    
+    _where.defvjp(
+    lambda condition, x, y: (torch.where(condition, x, y), [condition]),
+    lambda g, res: (
+        None,
+        where(res[0], g, torch.zeros_like(g)),
+        where(res[0], torch.zeros_like(g), g)
+    )
+)
+
+
+    return _where(condition, x, y)
+
+
+def squeeze(x, axis):
+    @primitive
+    def _squeeze(x):
+        return torch.squeeze(x, axis)
+    
+    _squeeze.defvjp(
+        lambda x: (torch.squeeze(x, axis), [axis]),
+        lambda g, res: g.unsqueeze(res[0])
+    )
+    return _squeeze(x)
+
+def unsqueeze(x, axis):
+    @primitive
+    def _unsqueeze(x):
+        return torch.unsqueeze(x, axis)
+    
+    _unsqueeze.defvjp(
+        lambda x: (torch.unsqueeze(x, axis), [axis]),
+        lambda g, res: g.squeeze(res[0])
+    )
+    return _unsqueeze(x)

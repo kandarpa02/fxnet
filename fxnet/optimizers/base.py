@@ -1,5 +1,4 @@
-from ..nn.base import Cell
-from ..nn.parameters import Variable, NDarray, Parameter
+
 from typing import Dict, Any
 
 
@@ -43,7 +42,7 @@ class Optimizer:
           optimizers, but adapted to the FakeTensor design.
     """
 
-    def __init__(self, params:Parameter):
+    def __init__(self, params):
         self.params = params
 
     def __repr__(self) -> str:
@@ -96,7 +95,7 @@ class Optimizer:
         raise NotImplementedError
 
 
-    def apply_update(self, grads) -> Parameter:
+    def apply_update(self, grads):
         """Applies a single optimization step.
 
         This method:
