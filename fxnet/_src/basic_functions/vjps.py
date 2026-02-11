@@ -98,7 +98,7 @@ pow.defvjp(
     lambda x, y: (torch.pow(x, y), [x, y]),
     lambda g, res: (
         unbroadcast(res[0], g * res[1] * (res[0] ** (res[1] - 1))),
-        unbroadcast(res[1], g * res[0].log() * (res[0] ** res[1])),
+        unbroadcast(res[1], g * res[0].log() * (res[0] ** res[1]))
     )
 )
 
@@ -165,6 +165,7 @@ tanh.defvjp(
 
 # ---------------- sum ----------------
 
+
 def sum(x, axis=None, keepdims=False):
     @primitive
     def _sum(x):
@@ -172,7 +173,7 @@ def sum(x, axis=None, keepdims=False):
 
     _sum.defvjp(
         lambda x: (torch.sum(x, dim=axis, keepdim=keepdims), [x]),
-        lambda g, res: (res[0].ones_like() * g,)
+        lambda g, res: (torch.ones_like(res[0]) * g,)
     )
     return _sum(x)
 
@@ -184,7 +185,7 @@ def mean(x, axis=None, keepdims=False):
 
     mean.defvjp(
         lambda x: (torch.mean(x, dim=axis, keepdim=keepdims), [x]),
-        lambda g, res: (res[0].ones_like() * g / res[0].numel(),)
+        lambda g, res: (torch.ones_like(res[0]) * g / res[0].numel(),)
     )
     return _mean(x)
 
@@ -260,7 +261,7 @@ def _getitem(x, idx):
         return torch.Tensor.__getitem__(x, idx)
 
     def _scatter_like(x, idx, g):
-        out = x.zeros_like()
+        out = torch.zeros_like(x)
         out[idx] = out[idx] + g
         return out
 

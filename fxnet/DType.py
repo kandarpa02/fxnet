@@ -12,7 +12,7 @@ class DType:
 
     def __call__(self): return self.base
 
-DTypeLike = DType|torch.dtype|int|float|complex
+DTypeLike = DType|torch.dtype|int|float|complex|None
 
 
 float64 = DType(torch.float64)
