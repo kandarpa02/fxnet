@@ -277,7 +277,7 @@ def _getitem(x, idx):
             _scatter_like(res[0], res[1], g),
         )
     )
-    return _getitem
+    return getitem(x)
 
 
 def reshape(x, shape:Sequence[int]):
@@ -292,7 +292,7 @@ def reshape(x, shape:Sequence[int]):
     return _reshape(x)
 
 
-def permute(x, *axes):
+def permute(x, axes):
     @primitive
     def _permute(x):
         return torch.permute(x, dims=axes)
@@ -311,7 +311,7 @@ def permute(x, *axes):
             *([None] * len(axes)),
         )
     )
-    return _permute
+    return _permute(x)
 
 def greater(x, y):
     @primitive

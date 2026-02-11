@@ -12,31 +12,28 @@ ShapeLike = Sequence[int]|int
 def ones_like(x:TensorLike, dtype:DTypeLike=None):
     out = fxwrap(
         lambda x: torch.ones_like(x, dtype=dtype_f(dtype))
-    )
+    )(x)
     return out
 
 def zeros_like(x:TensorLike, dtype:DTypeLike=None):
     out = fxwrap(
         lambda x: torch.zeros_like(x, dtype=dtype_f(dtype))
-    )
+    )(x)
     return out
 
 def full_like(x:TensorLike, value:Number, dtype:DTypeLike=None):
     return fxwrap(
         lambda x: torch.full_like(x, value, dtype=dtype_f(dt))
-    )
+    )(x)
 
 def ones(shape:ShapeLike, dtype:DTypeLike=None):
-    return fxwrap(
-        lambda : torch.ones(size=shape, dtype=dtype_f(dtype))
-    )
+    out = torch.ones(size=shape, dtype=dtype_f(dtype))
+    return fxwrap(lambda x:x)(out)
 
 def zeros(shape:ShapeLike, dtype:DTypeLike=None):
-    return fxwrap(
-        lambda : torch.ones(size=shape, dtype=dtype_f(dtype))
-    )
+    out = torch.zero(size=shape, dtype=dtype_f(dtype))
+    return fxwrap(lambda x:x)(out)
 
 def full(shape:ShapeLike, value:Number, dtype:DTypeLike=None):
-    return fxwrap(
-        lambda : torch.full(shape, value, dtype=dtype_f(dtype))
-    )
+    out = torch.full(size=shape, fill_value=value, dtype=dtype_f(dtype))
+    return fxwrap(lambda x:x)(out)
