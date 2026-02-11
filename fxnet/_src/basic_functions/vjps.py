@@ -428,3 +428,169 @@ def unsqueeze(x, axis):
         lambda g, res: g.squeeze(res[0])
     )
     return _unsqueeze(x)
+
+
+def cat(xs, axis=0):
+    @primitive
+    def _cat(*xs):
+        return torch.cat(xs, dim=axis)
+
+    sizes = [x.shape[axis] for x in xs]
+
+    _cat.defvjp(
+        lambda *xs: (torch.cat(xs, dim=axis), [sizes]),
+        lambda g, res: tuple(
+            g.narrow(axis, sum(res[0][:i]), res[0][i])
+            for i in range(len(res[0]))
+        )
+    )
+
+    return _cat(*xs)
+
+
+def stack(xs, axis=0):
+    @primitive
+    def _stack(*xs):
+        return torch.stack(xs, dim=axis)
+
+    _stack.defvjp(
+        lambda *xs: (torch.stack(xs, dim=axis), [axis]),
+        lambda g, res: tuple(
+            g.select(res[0], i) for i in range(g.shape[res[0]])
+        )
+    )
+
+    return _stack(*xs)
+
+
+def broadcast_to(x, shape):
+    @primitive
+    def _broadcast_to(x):
+        return torch.broadcast_to(x, shape)
+
+    _broadcast_to.defvjp(
+        lambda x: (torch.broadcast_to(x, shape), [x.shape]),
+        lambda g, res: unbroadcast(
+            torch.empty(res[0], device=g.device), g
+        )
+    )
+
+    return _broadcast_to(x)
+
+def maximum(x, y):
+    @primitive
+    def _maximum(x, y):
+        return torch.maximum(x, y)
+
+    _maximum.defvjp(
+        lambda x, y: (torch.maximum(x, y), [x >= y]),
+        lambda g, res: (
+            where(res[0], g, torch.zeros_like(g)),
+            where(res[0], torch.zeros_like(g), g),
+        )
+    )
+
+    return _maximum(x, y)
+
+def minimum(x, y):
+    @primitive
+    def _minimum(x, y):
+        return torch.minimum(x, y)
+
+    _minimum.defvjp(
+        lambda x, y: (torch.minimum(x, y), [x <= y]),
+        lambda g, res: (
+            where(res[0], g, torch.zeros_like(g)),
+            where(res[0], torch.zeros_like(g), g),
+        )
+    )
+
+    return _minimum(x, y)
+
+@primitive
+def sign(x):
+    return torch.sign(x)
+
+sign.defvjp(
+    lambda x: (torch.sign(x), []),
+    lambda g, res: (torch.zeros_like(g),)
+)
+
+
+@primitive
+def abs(x):
+    return torch.abs(x)
+
+abs.defvjp(
+    lambda x: (torch.abs(x), [x]),
+    lambda g, res: (g * sign(res[0]),)
+)
+
+def clamp(x, min=None, max=None):
+    @primitive
+    def _clamp(x):
+        return torch.clamp(x, min=min, max=max)
+
+    _clamp.defvjp(
+        lambda x: (torch.clamp(x, min=min, max=max), [x]),
+        lambda g, res: (
+            g * (
+                (res[0] >= (min if min is not None else -torch.inf)) &
+                (res[0] <= (max if max is not None else torch.inf))
+            ),
+        )
+    )
+
+    return _clamp(x)
+
+
+def logical_and(x, y):
+    @primitive
+    def _and(x, y):
+        return torch.logical_and(x, y)
+
+    _and.defvjp(
+        lambda x, y: (torch.logical_and(x, y), []),
+        lambda g, res: (None, None)
+    )
+
+    return _and(x, y)
+
+
+def logical_or(x, y):
+    @primitive
+    def _or(x, y):
+        return torch.logical_or(x, y)
+
+    _or.defvjp(
+        lambda x, y: (torch.logical_or(x, y), []),
+        lambda g, res: (None, None)
+    )
+
+    return _or(x, y)
+
+
+def logical_not(x):
+    @primitive
+    def _not(x):
+        return torch.logical_not(x)
+
+    _not.defvjp(
+        lambda x: (torch.logical_not(x), []),
+        lambda g, res: (None,)
+    )
+
+    return _not(x)
+
+
+def logical_xor(x, y):
+    @primitive
+    def _xor(x, y):
+        return torch.logical_xor(x, y)
+
+    _xor.defvjp(
+        lambda x, y: (torch.logical_xor(x, y), []),
+        lambda g, res: (None, None)
+    )
+
+    return _xor(x, y)

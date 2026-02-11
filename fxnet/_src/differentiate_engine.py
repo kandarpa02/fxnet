@@ -53,6 +53,7 @@ class GradScope:
             TAPE = None
         return False
 
+
     def gradient(self, *variables):
         flat_vars, spec = flatten_pytree(variables)
 

@@ -41,4 +41,6 @@ not_equal
 where
 squeeze
 unsqueeze
+cat, stack
+logical_or, and etc...
 

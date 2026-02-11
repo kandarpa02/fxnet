@@ -32,6 +32,7 @@ ONLY = {
     "__le__", "__rle__",
     "__eq__", "__req__",
     "__ne__", "__rne__",
+    "__and__", "__rand__", "__or__", "__ror__", "__invert__", "__xor__", "__rxor__",
 
     # --- math methods you mapped to primitives ---
     "exp", "log", "sin", "cos", "tanh",
@@ -43,10 +44,8 @@ ONLY = {
     # --- indexing ---
     "__getitem__",
 
-    "as_subclass", "__array_prioroty__", "__array__"
+    "as_subclass", "__array_prioroty__", "__array__",
 }
-
-
 
 class Texor(torch.Tensor):
     __qualname__ = 'Tensor'
@@ -172,5 +171,12 @@ class Texor(torch.Tensor):
     def __req__(self, other): return equal(other, self)
     def __ne__(self, other): return not_equal(self, other)
     def __rne__(self, other): return not_equal(other, self)
+    def __and__(self, other): return logical_and(self, other)
+    def __rand__(self, other): return logical_and(other, self)
+    def __or__(self, other): return logical_or(self, other)
+    def __ror__(self, other): return logical_or(other, self)
+    def __invert__(self): return logical_not(self)
+    def __xor__(self, other): return logical_xor(self, other)
+    def __rxor__(self, other): return logical_xor(other, self)
 
 

@@ -8,7 +8,7 @@ def unbroadcast(shape_like, grad):
     """
     target_shape = shape_like.shape
     # Step 1: remove extra leading dims
-    while grad.dim() > len(target_shape):
+    while grad.ndim > len(target_shape):
         grad = grad.sum(axis=0)
 
     # Step 2: sum over broadcasted axes
