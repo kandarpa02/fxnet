@@ -36,7 +36,8 @@ def function_vjp_wrap(fwd, bwd):
 class _Funcwrap:
     def __init__(self, func):
         self.func = fxwrap(func)
-        self.vjp = lambda: None
+        # self.vjp = lambda *args: tuple(torch.zeros_like(_) for _ in args)
+        self.vjp = None
     
     def defvjp(self, fwd, bwd):
         self.vjp = function_vjp_wrap(fwd, bwd)
@@ -44,7 +45,9 @@ class _Funcwrap:
     def __call__(self, *args):
         from .differentiate_engine import REC
         if REC:
-            return self.vjp(*args)
+            if not self.vjp is None:
+                return self.vjp(*args)
+            return self.func(*args)
         else:
             return self.func(*args)
         

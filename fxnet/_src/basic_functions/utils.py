@@ -1,7 +1,7 @@
-from ..core import fxwrap
+from ..core import primitive
 import torch
 
-@fxwrap
+@primitive
 def unbroadcast(shape_like, grad):
     """
     Sum grad so that it matches target_shape (reverse of broadcasting)

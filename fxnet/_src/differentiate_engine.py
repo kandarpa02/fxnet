@@ -1,9 +1,20 @@
 from collections import defaultdict
 import torch
 from ..tree_util import flatten_pytree, unflatten_pytree
-
+import contextlib
 REC = False
 TAPE = None
+
+@contextlib.contextmanager
+def stop_gradient():
+    global REC
+    prev = REC
+    REC = False
+    try:
+        yield
+    finally:
+        REC = prev
+
 
 def create_tape():
     global TAPE 
@@ -33,24 +44,26 @@ class GradientTargetError(RuntimeError):
 
 
 class GradScope:
-    def __init__(self, share=False) -> None:
-        self.join = share
+    def __init__(self, share=False):
+        self.share = share
 
     def __enter__(self):
         global REC, TAPE
-        self.prev = REC
+        self.prev_REC = REC
+        self.prev_TAPE = TAPE
+
         REC = True
-        if TAPE is None or not self.join:
-            create_tape()
+
+        if not self.share:
+            create_tape()     
 
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        global REC
-        REC = self.prev
-        if not self.join:
-            global TAPE
-            TAPE = None
+    def __exit__(self, exc_type, exc, tb):
+        global REC, TAPE
+        REC = self.prev_REC
+        TAPE = self.prev_TAPE  
+
         return False
 
 

@@ -94,13 +94,21 @@ neg.defvjp(
 def pow(x, y):
     return torch.pow(x, y)
 
+def pow_f(x, y):
+    out = torch.pow(x, y)
+    logx = torch.log(x)
+    return out, (x, y, out, logx)
+
 pow.defvjp(
-    lambda x, y: (torch.pow(x, y), [x, y]),
+    lambda x, y: pow_f(x, y),
     lambda g, res: (
-        unbroadcast(res[0], g * res[1] * (res[0] ** (res[1] - 1))),
-        unbroadcast(res[1], g * res[0].log() * (res[0] ** res[1]))
+        unbroadcast(res[0], g * res[1] * (res[2] / res[0])),
+        unbroadcast(res[1], g * res[3] * res[2]),
     )
 )
+
+# def pow(x, y):
+#     return exp(y * log(x))   # tape will handle everything correctly
 
 
 # ---------------- exp ----------------
@@ -109,8 +117,12 @@ pow.defvjp(
 def exp(x):
     return torch.exp(x)
 
+def exp_f(x):
+    out = torch.exp(x)
+    return out, [out]
+
 exp.defvjp(
-    lambda x: (torch.exp(x), [torch.exp(x)]),
+    lambda x: exp_f(x),
     lambda g, res: (g * res[0],)
 )
 
