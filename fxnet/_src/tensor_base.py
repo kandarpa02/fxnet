@@ -8,7 +8,7 @@ ONLY = {
     # --- Python internals (do NOT touch) ---
     "__class__", "__dict__", "__repr__", "__str__", "__hash__",
     "__getattribute__", "__setattr__", "__delattr__",
-    "__init__", "__new__", "__torch_function__",
+    "__init__", "__new__", "__torch_function__", "is_leaf",
 
     # --- minimal tensor inspection ---
     "shape", "dtype", "device", "ndim", "numel",

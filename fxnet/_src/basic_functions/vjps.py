@@ -97,14 +97,18 @@ def pow(x, y):
 def pow_f(x, y):
     out = torch.pow(x, y)
     logx = torch.log(x)
-    return out, (x, y, out, logx)
+    return out, (x, y, out)
+
+def pow_vjp(g, res):
+    x, y, z = res
+    return (
+        unbroadcast(x, g*y*z/x),
+        unbroadcast(y, g*x.log()*z)
+    )
 
 pow.defvjp(
-    lambda x, y: pow_f(x, y),
-    lambda g, res: (
-        unbroadcast(res[0], g * res[1] * (res[2] / res[0])),
-        unbroadcast(res[1], g * res[3] * res[2]),
-    )
+    pow_f,
+    pow_vjp
 )
 
 # def pow(x, y):

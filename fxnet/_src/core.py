@@ -5,11 +5,6 @@ from typing import Any, Callable
 from collections.abc import Sequence
 from collections import defaultdict
 
-@dataclasses.dataclass
-class Node:
-    value:Any
-    parents:tuple
-    vjp:Callable
 
 def fxwrap(f):
     def infunc(*args):
@@ -19,16 +14,21 @@ def fxwrap(f):
         return f(*args)
     return infunc
 
+
 def function_vjp_wrap(fwd, bwd):
     def infunc(*args):
         from .tensor_base import Texor
-        from .differentiate_engine import TAPE
+        from .tracer import Tracer, new_ids, Node
         args = tuple(arg if isinstance(arg, Texor) else Texor(arg)
                      for arg in args)
                      
         y, res = fwd(*args)
-        node = Node(y, parents=args, vjp=lambda g: bwd(g, res))
-        TAPE.append(node)
+        ids = tuple(new_ids() for _ in args)
+        tracers = tuple(Tracer(id) for id in ids)
+        
+        teaced = Tracer(id)
+        
+
         return y
     return infunc
 
@@ -36,7 +36,6 @@ def function_vjp_wrap(fwd, bwd):
 class _Funcwrap:
     def __init__(self, func):
         self.func = fxwrap(func)
-        # self.vjp = lambda *args: tuple(torch.zeros_like(_) for _ in args)
         self.vjp = None
     
     def defvjp(self, fwd, bwd):

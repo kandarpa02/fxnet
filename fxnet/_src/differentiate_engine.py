@@ -2,101 +2,90 @@ from collections import defaultdict
 import torch
 from ..tree_util import flatten_pytree, unflatten_pytree
 import contextlib
+from typing import ParamSpec, Union, Dict, Any
+
+PyTree = Union[list|tuple|Dict[Any, Any]|Any]
+
 REC = False
 TAPE = None
 
+
+def add_tape():
+    global TAPE
+    TAPE = []
+
+def del_tape():
+    global TAPE
+    TAPE = None
+
 @contextlib.contextmanager
-def stop_gradient():
+def rec():
     global REC
     prev = REC
-    REC = False
+    REC = True
     try:
         yield
     finally:
         REC = prev
 
+def show_tape():
+    global TAPE
+    return TAPE
 
-def create_tape():
-    global TAPE 
-    TAPE = []
 
-def backward(tape:list):
-    from .basic_functions.vjps import add
-    grads = defaultdict(lambda: 0)
-    root_node_value = tape[-1].value
-    grads[root_node_value] = torch.ones_like(root_node_value)
+def backward(tape):
+    d = {}
+    root = tape[-1]
+    d[root.v()] = torch.ones_like(root.v())
 
     for node in reversed(tape):
-        g = grads[node.value]
+        out = node.v()
+        if out not in d:
+            continue
 
-        parent_grads = node.vjp(g)
+        g = d[out]
 
-        for p, gp in zip(node.parents, parent_grads):
-            grads[p] = add(grads[p], gp)
+        if not node.parents:
+            continue
 
-    return grads
+        with rec():
+            parent_grads = node.vjp(g)
 
-class EmptyTapeError(RuntimeError):
-    pass
+        for parent, pg in zip(node.parents, parent_grads):
+            if parent in d:
+                d[parent] = d[parent] + pg
+            else:
+                d[parent] = pg
 
-class GradientTargetError(RuntimeError):
-    pass
+    return d
 
 
-class GradScope:
-    def __init__(self, share=False):
-        self.share = share
-
+class Tape:
     def __enter__(self):
-        global REC, TAPE
-        self.prev_REC = REC
-        self.prev_TAPE = TAPE
-
+        global REC
+        self.rec_prev = REC
         REC = True
-
-        if not self.share:
-            create_tape()     
-
+        add_tape()
         return self
 
-    def __exit__(self, exc_type, exc, tb):
-        global REC, TAPE
-        REC = self.prev_REC
-        TAPE = self.prev_TAPE  
+    def __exit__(self, *args):
+        global REC
+        REC = self.rec_prev
 
-        return False
-
-
-    def gradient(self, *variables):
-        flat_vars, spec = flatten_pytree(variables)
-
+    def clear(self):
+        del_tape()
+        
+    def gradient(self, *sources:PyTree):
+        flat_args, spec = flatten_pytree(sources)
         global TAPE
-        for t in flat_vars:
-            from .tensor_base import Texor
-            if not isinstance(t, Texor):
-                raise ValueError(f"variables must be {Texor} for computing gradients. ")
-            
-
-        if not TAPE:
-            raise EmptyTapeError(
-                "No active trace found. "
-                "This usually happens if `share` was False "
-                "or `gradient()` is used outside the Trace context."
-            )
-
         tape = TAPE
-        gdict = backward(tape)
+        grad_dict = backward(tape)
 
-        grads = []
-        for t in flat_vars:
-            if t not in gdict:
-                raise GradientTargetError(
-                    f"Cannot compute gradient for {t}. "
-                    "This value was not produced inside the current Trace."
-                )
-            grads.append(gdict[t])
+        flat_grads = []
+        for arg in flat_args:
+            flat_grads.append(grad_dict.get(arg, 0.0))
 
-        result = unflatten_pytree(grads, spec)
+        grads = unflatten_pytree(flat_grads, spec)
 
-        return result[0] if len(result) == 1 else result
-
+        return grads[0] if len(grads)==1 else grads
+    
