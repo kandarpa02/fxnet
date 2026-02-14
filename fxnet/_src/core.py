@@ -5,6 +5,17 @@ from typing import Any, Callable
 from collections.abc import Sequence
 from collections import defaultdict
 
+@dataclasses.dataclass
+class Node:
+    value:Any
+    parents:Sequence
+    vjp:Callable
+
+    def v(self): return self.value
+
+    def __repr__(self):
+        return f"Node(v={self.v()}, p={self.parents})"
+    __str__ = __repr__
 
 def fxwrap(f):
     def infunc(*args):
@@ -18,17 +29,12 @@ def fxwrap(f):
 def function_vjp_wrap(fwd, bwd):
     def infunc(*args):
         from .tensor_base import Texor
-        from .tracer import Tracer, new_ids, Node
         args = tuple(arg if isinstance(arg, Texor) else Texor(arg)
                      for arg in args)
                      
         y, res = fwd(*args)
-        ids = tuple(new_ids() for _ in args)
-        tracers = tuple(Tracer(id) for id in ids)
-        
-        teaced = Tracer(id)
-        
-
+        y._node = Node(y, parents=args, vjp=lambda g: bwd(g, res))
+    
         return y
     return infunc
 

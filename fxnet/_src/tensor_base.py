@@ -8,7 +8,7 @@ ONLY = {
     # --- Python internals (do NOT touch) ---
     "__class__", "__dict__", "__repr__", "__str__", "__hash__",
     "__getattribute__", "__setattr__", "__delattr__",
-    "__init__", "__new__", "__torch_function__", "is_leaf",
+    "__init__", "__new__", "__torch_function__", "_node",
 
     # --- minimal tensor inspection ---
     "shape", "dtype", "device", "ndim", "numel",
@@ -59,6 +59,7 @@ class Texor(torch.Tensor):
         dtype = dtype_f(dtype)
         data = torch.as_tensor(data, dtype=dtype).detach()
         obj = torch.Tensor._make_subclass(cls, data, require_grad=False)
+        obj._node = None
         return obj
 
     def __init__(self, data, dtype=None):

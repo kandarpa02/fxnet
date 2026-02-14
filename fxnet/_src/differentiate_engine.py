@@ -3,83 +3,83 @@ import torch
 from ..tree_util import flatten_pytree, unflatten_pytree
 import contextlib
 from typing import ParamSpec, Union, Dict, Any
+import pprint
 
 PyTree = Union[list|tuple|Dict[Any, Any]|Any]
 
 REC = False
-TAPE = None
-
-
-def add_tape():
-    global TAPE
-    TAPE = []
-
-def del_tape():
-    global TAPE
-    TAPE = None
 
 @contextlib.contextmanager
-def rec():
+def stop_gradient():
     global REC
     prev = REC
-    REC = True
+    REC = False
     try:
         yield
     finally:
         REC = prev
 
-def show_tape():
-    global TAPE
-    return TAPE
+
+def topo_sort(root):
+    visited = set()
+    order = []
+
+    def dfs(t):
+        if t in visited:
+            return
+        visited.add(t)
+
+        node = getattr(t, "_node", None)
+        if node:
+            for p in node.parents:
+                dfs(p)
+
+        order.append(t)
+
+    dfs(root)
+    return order
 
 
-def backward(tape):
-    d = {}
-    root = tape[-1]
-    d[root.v()] = torch.ones_like(root.v())
+def backward(root):
+    grads = defaultdict(lambda: 0.)
 
-    for node in reversed(tape):
-        out = node.v()
-        if out not in d:
+    if getattr(root, "_node", None) is None:
+        return grads  # everything zero
+    
+    grads[root] = torch.ones_like(root._node.v())
+
+    order = topo_sort(root)
+
+    for t in reversed(order):
+        node = getattr(t, "_node", None)
+        if node is None:
             continue
 
-        g = d[out]
-
-        if not node.parents:
-            continue
-
-        with rec():
-            parent_grads = node.vjp(g)
+        g = grads[t]
+        parent_grads = node.vjp(g)
 
         for parent, pg in zip(node.parents, parent_grads):
-            if parent in d:
-                d[parent] = d[parent] + pg
-            else:
-                d[parent] = pg
+            grads[parent] += pg
 
-    return d
+    return grads
 
 
-class Tape:
+class Grad:
     def __enter__(self):
         global REC
-        self.rec_prev = REC
+        self.prev = REC
         REC = True
-        add_tape()
         return self
 
     def __exit__(self, *args):
         global REC
-        REC = self.rec_prev
+        REC = self.prev
+        return False
 
-    def clear(self):
-        del_tape()
-        
-    def gradient(self, *sources:PyTree):
+    def gradient(self, target, sources:PyTree):
         flat_args, spec = flatten_pytree(sources)
-        global TAPE
-        tape = TAPE
-        grad_dict = backward(tape)
+
+        grad_dict = backward(target)
 
         flat_grads = []
         for arg in flat_args:
