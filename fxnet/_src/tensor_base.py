@@ -47,6 +47,23 @@ ONLY = {
     "as_subclass", "__array_prioroty__", "__array__",
 }
 
+def data_manager(data, dtype, device):
+    if isinstance(data, Texor):
+        if dtype is not None:
+            data = torch.as_tensor(data, dtype=dtype)
+        if device is not None:
+            data = torch.as_tensor(data, device=device)
+        return data 
+    if isinstance(data, torch.Tensor):
+        return data.to(dtype=dtype, device=device).detach()
+    
+    if isinstance(data, np.ndarray|int|float|bool|complex):
+        return torch.as_tensor(data, dtype=dtype, device=device).detach()
+    
+    return data
+
+DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+
 class Texor(torch.Tensor):
     __qualname__ = 'Tensor'
     __module__ = 'fxnet'
@@ -55,14 +72,16 @@ class Texor(torch.Tensor):
         return id(self)
 
     @staticmethod
-    def __new__(cls, data, dtype=None):
+    def __new__(cls, data, dtype=None, device=None):
         dtype = dtype_f(dtype)
-        data = torch.as_tensor(data, dtype=dtype).detach()
+        global DEVICE
+        device = device if device is not None else DEVICE
+        data = data_manager(data, dtype, device)
         obj = torch.Tensor._make_subclass(cls, data, require_grad=False)
         obj._node = None
         return obj
 
-    def __init__(self, data, dtype=None):
+    def __init__(self, data, dtype=None, device=None):
         pass
 
     @classmethod
