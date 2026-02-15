@@ -160,10 +160,6 @@ pow.defvjp(
     pow_vjp
 )
 
-# def pow(x, y):
-#     return exp(y * log(x))   # tape will handle everything correctly
-
-
 # ---------------- exp ----------------
 
 @primitive

@@ -41,6 +41,7 @@ def topo_sort(root):
 
 
 def backward(root):
+    from .basic_functions.vjps import add
     grads = defaultdict(lambda: 0.)
 
     if getattr(root, "_node", None) is None:
@@ -58,8 +59,15 @@ def backward(root):
         g = grads[t]
         parent_grads = node.vjp(g)
 
+        # for parent, pg in zip(node.parents, parent_grads):
+            # grads[parent] += pg
+
         for parent, pg in zip(node.parents, parent_grads):
-            grads[parent] += pg
+            if parent in grads:
+                grads[parent] = add(grads[parent], pg)
+            else:
+                grads[parent] = pg
+
 
     return grads
 
