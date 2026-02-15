@@ -3,18 +3,67 @@ from .utils import unbroadcast
 import torch
 from collections.abc import Sequence
 
-# add
-# sub 
-# mul
-# div
-# neg
-# pow
-# exp
-# log
-# tanh
-# sum
-# mean
-# matmul
+
+__all__ = [
+    # basic arithmetic
+    "add",
+    "sub",
+    "mul",
+    "div",
+    "neg",
+    "pow",
+
+    # unary math
+    "exp",
+    "log",
+    "sin",
+    "cos",
+    "tanh",
+    "sign",
+    "abs",
+
+    # reductions
+    "sum",
+    "mean",
+    "prod",
+    "max",
+    "min",
+
+    # linear algebra
+    "matmul",
+
+    # shape ops
+    "reshape",
+    "permute",
+    "squeeze",
+    "unsqueeze",
+    "broadcast_to",
+
+    # comparison
+    "greater",
+    "greater_equal",
+    "less",
+    "less_equal",
+    "equal",
+    "not_equal",
+
+    # logical
+    "logical_and",
+    "logical_or",
+    "logical_not",
+    "logical_xor",
+
+    # selection
+    "where",
+    "maximum",
+    "minimum",
+    "clamp",
+
+    # tensor combining
+    "cat",
+    "stack",
+]
+
 
 # ---------------- add ----------------
 
@@ -266,8 +315,8 @@ def matmul(x, y):
 matmul.defvjp(
     lambda x, y: (torch.matmul(x, y), [x, y]),
     lambda g, res: (
-        unbroadcast(res[0], g @ res[1].transpose(-1, -2)),
-        unbroadcast(res[1], res[0].transpose(-1, -2) @ g),
+        unbroadcast(res[0], g @ res[1].T),
+        unbroadcast(res[1], res[0].T @ g),
     )
 )
 

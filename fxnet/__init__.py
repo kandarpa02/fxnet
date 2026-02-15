@@ -15,6 +15,7 @@ from . import tree
 # from .src.ndarray.array_transformation import one_hot
 
 from ._src.user_api import *
+from ._src.basic_functions.vjps import *
 from ._src.differentiate_engine import Grad, stop_gradient
 from ._src import tools
 

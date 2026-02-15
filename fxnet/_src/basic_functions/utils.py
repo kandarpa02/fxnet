@@ -3,18 +3,15 @@ import torch
 
 @primitive
 def unbroadcast(shape_like, grad):
-    """
-    Sum grad so that it matches target_shape (reverse of broadcasting)
-    """
-    target_shape = shape_like.shape
-    # Step 1: remove extra leading dims
-    while grad.ndim > len(target_shape):
-        grad = grad.sum(axis=0)
+    target = shape_like.shape
+    gshape = grad.shape
 
-    # Step 2: sum over broadcasted axes
-    for i, size in enumerate(target_shape):
-        if size == 1:
+    if len(gshape) > len(target):
+        for _ in range(len(gshape) - len(target)):
+            grad = grad.sum(axis=0)
+
+    for i, (g, t) in enumerate(zip(grad.shape, target)):
+        if t == 1 and g != 1:
             grad = grad.sum(axis=i, keepdims=True)
 
     return grad
-
