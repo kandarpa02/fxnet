@@ -8,7 +8,7 @@ ONLY = {
     # --- Python internals (do NOT touch) ---
     "__class__", "__dict__", "__repr__", "__str__", "__hash__",
     "__getattribute__", "__setattr__", "__delattr__",
-    "__init__", "__new__", "__torch_function__", "_node",
+    "__init__", "__new__", "__torch_function__",
 
     # --- minimal tensor inspection ---
     "shape", "dtype", "device", "ndim", "numel",
@@ -78,7 +78,6 @@ class Texor(torch.Tensor):
         device = device if device is not None else DEVICE
         data = data_manager(data, dtype, device)
         obj = torch.Tensor._make_subclass(cls, data, require_grad=False)
-        obj._node = None
         return obj
 
     def __init__(self, data, dtype=None, device=None):

@@ -9,6 +9,8 @@ PyTree = Union[list|tuple|Dict[Any, Any]|Any]
 
 REC = False
 
+tape_dict = {}
+
 @contextlib.contextmanager
 def stop_gradient():
     global REC
@@ -21,6 +23,7 @@ def stop_gradient():
 
 
 def topo_sort(root):
+    global tape_dict
     visited = set()
     order = []
 
@@ -29,7 +32,8 @@ def topo_sort(root):
             return
         visited.add(t)
 
-        node = getattr(t, "_node", None)
+        # node = getattr(t, "_node", None)
+        node = tape_dict.get(t, None)
         if node:
             for p in node.parents:
                 dfs(p)
@@ -41,26 +45,28 @@ def topo_sort(root):
 
 
 def backward(root):
+    global tape_dict
     from .basic_functions.vjps import add
     grads = defaultdict(lambda: 0.)
 
-    if getattr(root, "_node", None) is None:
-        return grads  # everything zero
+    # if getattr(root, "_node", None) is None:
+    #     return grads 
+    if tape_dict.get(root, None) is None:
+        return grads
     
-    grads[root] = torch.ones_like(root._node.v())
+    r_node = tape_dict[root]
+    grads[root] = torch.ones_like(r_node.v())
 
     order = topo_sort(root)
 
     for t in reversed(order):
-        node = getattr(t, "_node", None)
+        # node = getattr(t, "_node", None)
+        node = tape_dict.get(t, None)
         if node is None:
             continue
 
         g = grads[t]
         parent_grads = node.vjp(g)
-
-        # for parent, pg in zip(node.parents, parent_grads):
-            # grads[parent] += pg
 
         for parent, pg in zip(node.parents, parent_grads):
             if parent in grads:
@@ -71,7 +77,6 @@ def backward(root):
 
     return grads
 
-
 class Grad:
     def __enter__(self):
         global REC
@@ -80,10 +85,15 @@ class Grad:
         return self
 
     def __exit__(self, *args):
-        global REC
+        global REC, tape_dict
         REC = self.prev
+        
+        if not REC:
+            tape_dict.clear()
+
         return False
 
+class AutoDiff(Grad):
     def gradient(self, target, sources:PyTree):
         flat_args, spec = flatten_pytree(sources)
 
@@ -97,3 +107,6 @@ class Grad:
 
         return grads[0] if len(grads)==1 else grads
     
+    
+class ForwardAccumulator(Grad):
+    pass

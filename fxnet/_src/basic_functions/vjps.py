@@ -12,7 +12,7 @@ __all__ = [
     "div",
     "neg",
     "pow",
-
+    
     # unary math
     "exp",
     "log",
@@ -22,7 +22,7 @@ __all__ = [
     "sign",
     "abs",
 
-    # reductions
+    # reductions 
     "sum",
     "mean",
     "prod",

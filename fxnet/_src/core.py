@@ -29,11 +29,12 @@ def fxwrap(f):
 def function_vjp_wrap(fwd, bwd):
     def infunc(*args):
         from .tensor_base import Texor
+        from .differentiate_engine import tape_dict
         args = tuple(arg if isinstance(arg, Texor) else Texor(arg)
                      for arg in args)
                      
         y, res = fwd(*args)
-        y._node = Node(y, parents=args, vjp=lambda g: bwd(g, res))
+        tape_dict[y] = Node(y, parents=args, vjp=lambda g: bwd(g, res))
     
         return y
     return infunc
