@@ -32,7 +32,6 @@ def topo_sort(root):
             return
         visited.add(t)
 
-        # node = getattr(t, "_node", None)
         node = tape_dict.get(t, None)
         if node:
             for p in node.parents:
@@ -49,8 +48,6 @@ def backward(root):
     from .basic_functions.vjps import add
     grads = defaultdict(lambda: 0.)
 
-    # if getattr(root, "_node", None) is None:
-    #     return grads 
     if tape_dict.get(root, None) is None:
         return grads
     
@@ -60,7 +57,6 @@ def backward(root):
     order = topo_sort(root)
 
     for t in reversed(order):
-        # node = getattr(t, "_node", None)
         node = tape_dict.get(t, None)
         if node is None:
             continue
@@ -74,10 +70,9 @@ def backward(root):
             else:
                 grads[parent] = pg
 
-
     return grads
 
-class Grad:
+class AutoDiff:
     def __enter__(self):
         global REC
         self.prev = REC
@@ -93,7 +88,7 @@ class Grad:
 
         return False
 
-class AutoDiff(Grad):
+class Grad(AutoDiff):
     def gradient(self, target, sources:PyTree):
         flat_args, spec = flatten_pytree(sources)
 
@@ -107,6 +102,3 @@ class AutoDiff(Grad):
 
         return grads[0] if len(grads)==1 else grads
     
-    
-class ForwardAccumulator(Grad):
-    pass

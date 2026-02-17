@@ -15,3 +15,16 @@ def unbroadcast(shape_like, grad):
             grad = grad.sum(axis=i, keepdims=True)
 
     return grad
+
+
+def like_tensor(x):
+    from ..tensor_base import Texor
+    @primitive
+    def ltensor(x):
+        return torch.Tensor.as_subclass(x, Texor)
+    
+    ltensor.defvjp(
+        lambda x: (torch.Tensor.as_subclass(x, Texor), []),
+        lambda g, res: (g,)
+    )
+    return ltensor(x)

@@ -25,7 +25,6 @@ def fxwrap(f):
         return f(*args)
     return infunc
 
-
 def function_vjp_wrap(fwd, bwd):
     def infunc(*args):
         from .tensor_base import Texor
@@ -35,28 +34,26 @@ def function_vjp_wrap(fwd, bwd):
                      
         y, res = fwd(*args)
         tape_dict[y] = Node(y, parents=args, vjp=lambda g: bwd(g, res))
-    
         return y
     return infunc
 
-
-class _Funcwrap:
-    def __init__(self, func):
-        self.func = fxwrap(func)
-        self.vjp = None
-    
-    def defvjp(self, fwd, bwd):
-        self.vjp = function_vjp_wrap(fwd, bwd)
-
-    def __call__(self, *args):
-        from .differentiate_engine import REC
-        if REC:
-            if not self.vjp is None:
-                return self.vjp(*args)
-            return self.func(*args)
-        else:
-            return self.func(*args)
-        
+import functools
 
 def primitive(f):
-    return _Funcwrap(f)
+    func = fxwrap(f)
+    vjp = None
+
+    def _defvjp(fwd, bwd):
+        nonlocal vjp
+        vjp = function_vjp_wrap(fwd, bwd)
+
+    @functools.wraps(f)
+    def callback(*args):
+        from .differentiate_engine import REC
+        if REC and vjp is not None:
+            return vjp(*args)
+        return func(*args)
+
+    callback.defvjp = _defvjp
+    callback._primitive = True   
+    return callback
